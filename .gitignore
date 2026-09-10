@@ -7,3 +7,16 @@ report/
 .DS_Store
 __pycache__/
 *.pyc
+*.pyo
+.venv/
+.env
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+dist/
+build/
+.coverage
+htmlcov/
+tests/fixtures/*.wav
+tests/fixtures/*.meta.json
