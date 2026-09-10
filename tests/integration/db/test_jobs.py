@@ -121,6 +121,91 @@ def test_reconcile_stale_processing_fails_job_when_source_missing(conn):
     assert row == ("FAILED", "SOURCE_MISSING")
 
 
+def test_reconcile_stale_processing_isolates_hashing_exceptions_per_row(conn, tmp_path, monkeypatch):
+    """A hash-verification failure for one stale row (permissions, the file
+    vanishing mid-check) must not abort reconciliation of the other stale
+    rows, and must not let the exception escape reconcile_stale_processing
+    itself -- same pattern as
+    test_poll_pending_sessions_isolates_exceptions_per_candidate in
+    tests/integration/watcher/test_watch_service.py."""
+    failing_source = tmp_path / "failing.m4a"
+    failing_source.write_bytes(b"x")
+    failing_id = register_job(conn, NewJob(
+        source_path=str(failing_source), source_hash=hash_file(failing_source),
+        category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+
+    ok_source = tmp_path / "ok.m4a"
+    ok_source.write_bytes(b"y")
+    ok_id = register_job(conn, NewJob(
+        source_path=str(ok_source), source_hash=hash_file(ok_source),
+        category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+
+    real_hash_file = hash_file
+
+    def flaky_hash_file(path):
+        if str(path) == str(failing_source):
+            raise OSError("permission denied")
+        return real_hash_file(path)
+
+    monkeypatch.setattr("transcribe_inbox.db.jobs.hash_file", flaky_hash_file)
+
+    reconcile_stale_processing(conn)  # must not raise
+
+    failing_row = conn.execute(
+        "SELECT status, error_code FROM transcription_job WHERE id = %s", (failing_id,)
+    ).fetchone()
+    assert failing_row == ("FAILED", "RECONCILIATION_ERROR")
+
+    ok_row = conn.execute("SELECT status FROM transcription_job WHERE id = %s", (ok_id,)).fetchone()
+    assert ok_row[0] == "PENDING"
+
+
+def test_reconcile_stale_processing_survives_an_aborted_transaction(conn, tmp_path, monkeypatch):
+    """When the exception that trips a row's recovery handler is itself a DB
+    error raised mid-statement (not a pure-Python hashing error), Postgres
+    leaves the transaction aborted -- any further statement on it raises
+    InFailedSqlTransaction until rolled back. The except handler's own
+    recovery UPDATE must roll back first, or it would itself raise and
+    escape reconcile_stale_processing (the exact daemon-crash-loop failure
+    mode this fix prevents, reached via a DB error instead of a hashing
+    error)."""
+    source = tmp_path / "x.m4a"
+    source.write_bytes(b"x")
+    job_id = register_job(conn, NewJob(
+        source_path=str(source), source_hash=hash_file(source),
+        category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+
+    real_execute = psycopg.Cursor.execute
+    call_count = {"n": 0}
+
+    def flaky_execute(self, query, params=None, **kwargs):
+        if isinstance(query, str) and query.strip().startswith("UPDATE transcription_job SET status = 'PENDING'"):
+            call_count["n"] += 1
+            # A genuine Postgres-level error (not a synthetic Python
+            # exception) so the connection's transaction is *actually* left
+            # aborted by the server -- reproducing the real failure mode,
+            # where any further statement on it raises
+            # InFailedSqlTransaction until a ROLLBACK.
+            return real_execute(self, "SELECT * FROM this_table_does_not_exist_xyz", None, **kwargs)
+        return real_execute(self, query, params, **kwargs)
+
+    monkeypatch.setattr(psycopg.Cursor, "execute", flaky_execute)
+
+    reconcile_stale_processing(conn)  # must not raise
+
+    assert call_count["n"] == 1
+    row = conn.execute(
+        "SELECT status, error_code FROM transcription_job WHERE id = %s", (job_id,)
+    ).fetchone()
+    assert row == ("FAILED", "RECONCILIATION_ERROR")
+
+
 def test_find_completed_jobs_with_source_still_present(conn, tmp_path):
     source = tmp_path / "x.m4a"
     source.write_bytes(b"x")

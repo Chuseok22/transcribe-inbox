@@ -148,7 +148,11 @@ def reconcile_stale_processing(conn: psycopg.Connection) -> None:
         for job_id, source_path, source_hash, processing_mode in rows:
             # Isolated per-row: a hashing failure for this one row
             # (permissions, the file vanishing mid-check) must not abort
-            # reconciliation of the remaining stale rows.
+            # reconciliation of the remaining stale rows. Each row's outcome
+            # is committed immediately (rather than batched into one final
+            # commit) so that a later row's failure -- and the rollback it
+            # may require, see below -- can never discard an earlier row's
+            # already-decided status.
             try:
                 path = Path(source_path)
                 if not path.exists():
@@ -156,6 +160,7 @@ def reconcile_stale_processing(conn: psycopg.Connection) -> None:
                         "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_MISSING' WHERE id = %s",
                         (job_id,),
                     )
+                    conn.commit()
                     continue
                 current_hash = hash_session(path) if processing_mode == MULTITRACK_MODE else hash_file(path)
                 if current_hash != source_hash:
@@ -163,19 +168,38 @@ def reconcile_stale_processing(conn: psycopg.Connection) -> None:
                         "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_CHANGED' WHERE id = %s",
                         (job_id,),
                     )
+                    conn.commit()
                     continue
                 cur.execute("UPDATE transcription_job SET status = 'PENDING' WHERE id = %s", (job_id,))
+                conn.commit()
             except Exception:
                 # Can't verify the hash, so don't blindly requeue against
                 # possibly-different content -- mark it FAILED with a clear
                 # error code so it surfaces for investigation/explicit retry
                 # instead of being left stuck in PROCESSING forever.
                 logger.exception("Reconciliation failed for stale job %s", job_id)
-                cur.execute(
-                    "UPDATE transcription_job SET status = 'FAILED', error_code = 'RECONCILIATION_ERROR' WHERE id = %s",
-                    (job_id,),
-                )
-    conn.commit()
+                try:
+                    # If the exception above came from one of this row's own
+                    # cur.execute() calls (a real DB error, not a pure-Python
+                    # one like a hashing OSError), Postgres has left this
+                    # transaction aborted -- any further statement on it
+                    # raises InFailedSqlTransaction until rolled back. This
+                    # rollback is always safe to call even when the
+                    # transaction isn't aborted; it just clears this row's
+                    # own uncommitted work (already committed rows above are
+                    # unaffected).
+                    conn.rollback()
+                    cur.execute(
+                        "UPDATE transcription_job SET status = 'FAILED', error_code = 'RECONCILIATION_ERROR' WHERE id = %s",
+                        (job_id,),
+                    )
+                    conn.commit()
+                except Exception:
+                    # Even the recovery write failed -- log and move on to
+                    # the next row rather than let this handler become a new
+                    # place an exception can escape reconcile_stale_processing
+                    # from.
+                    logger.exception("Failed to record RECONCILIATION_ERROR for stale job %s", job_id)
 
 
 def find_status_by_hash(conn: psycopg.Connection, source_hash: str) -> str | None:
