@@ -61,7 +61,10 @@ class JobMonitor:
         self._swap_out_start_bytes: int | None = None
 
     def start(self) -> None:
-        self._swap_out_start_bytes = self._swap_out_fn()
+        try:
+            self._swap_out_start_bytes = self._swap_out_fn()
+        except Exception:
+            self._swap_out_start_bytes = None
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -70,7 +73,10 @@ class JobMonitor:
         if self._thread is not None:
             self._thread.join(timeout=self._sample_interval + 5.0)
         if self._swap_out_start_bytes is not None:
-            self.swap_out_delta_bytes = self._swap_out_fn() - self._swap_out_start_bytes
+            try:
+                self.swap_out_delta_bytes = self._swap_out_fn() - self._swap_out_start_bytes
+            except Exception:
+                self.swap_out_delta_bytes = None
 
     def _run(self) -> None:
         warned = False
