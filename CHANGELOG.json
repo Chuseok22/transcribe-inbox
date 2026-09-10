@@ -1,0 +1,31 @@
+{
+  "metadata": {
+    "lastUpdated": "2026-09-10T09:06:29Z",
+    "currentVersion": "0.0.2",
+    "projectTypes": [
+      "basic"
+    ],
+    "totalReleases": 1
+  },
+  "releases": [
+    {
+      "version": "0.0.2",
+      "project_types": [
+        "basic"
+      ],
+      "date": "2026-09-10",
+      "pr_number": null,
+      "raw_summary": "## [0.0.2]\n\n### 🔧 변경사항\n- add project-auto-wizard ci/versioning scaffold\n- Initial commit",
+      "parsed_changes": {
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "add project-auto-wizard ci/versioning scaffold",
+            "Initial commit"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    }
+  ]
+}
