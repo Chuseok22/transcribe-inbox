@@ -39,6 +39,7 @@ def register_job(conn: psycopg.Connection, job: NewJob) -> uuid.UUID | None:
         if row is not None:
             existing_id, status = row
             if status != "FAILED":
+                conn.rollback()
                 return None
             cur.execute(
                 """
@@ -153,8 +154,10 @@ def find_completed_jobs_with_source_still_present(conn: psycopg.Connection) -> l
             "SELECT id, source_path, category, processing_mode, tracks FROM transcription_job WHERE status = 'COMPLETED'"
         )
         rows = cur.fetchall()
-    return [
+    result = [
         Job(id=row[0], source_path=row[1], category=row[2], processing_mode=row[3], tracks=row[4])
         for row in rows
         if Path(row[1]).exists()
     ]
+    conn.rollback()
+    return result
