@@ -52,9 +52,10 @@ summarization step; that's left to the user.
 
 Drop files under `~/Transcribe/inbox/<category>/[mode]/<file-or-session>`,
 where `mode` is `asr` (default, omit the folder), `diarize`, or
-`asr-multitrack` (a folder of per-speaker track files). See
-`docs/superpowers/specs/2026-09-09-transcribe-inbox-design.md` for the full
-rationale behind this structure.
+`asr-multitrack` (a folder of per-speaker track files). The full rationale
+behind this structure lives in a local design spec under `docs/`, which is
+gitignored and not included in this repository — it's a local/untracked
+planning artifact, so that path won't resolve on a fresh clone.
 
 ## Usage
 
