@@ -9,7 +9,7 @@ import numpy as np
 from transcribe_inbox.engines.base import ProgressCallback, TranscriptionEngine, TranscriptionRequest
 from transcribe_inbox.preprocess.ffmpeg import wav_duration_seconds
 from transcribe_inbox.transcript.resegment import speaker_aware_resegment
-from transcribe_inbox.transcript.schema import SCHEMA_VERSION, Segment, TranscriptDocument, Word
+from transcribe_inbox.transcript.schema import SCHEMA_VERSION, TranscriptDocument, Word
 
 PIPELINE_VERSION = "0.1.0"
 
@@ -82,8 +82,12 @@ class WhisperMlxEngine(TranscriptionEngine):
         # there is no `.speaker_diarization` attribute to unwrap.
         result_with_speakers = whispermlx.assign_word_speakers(diarization_df, aligned)
 
+        # `doc.words` (the raw word-level output) must only ever contain real
+        # aligned words -- `all_words` is the separate chronological list
+        # (real aligned words plus synthetic fallback words) fed into a
+        # single `speaker_aware_resegment` call below to build `doc.segments`.
         words: list[Word] = []
-        segments: list[Segment] = []
+        all_words: list[Word] = []
         for seg in result_with_speakers["segments"]:
             seg_words = seg.get("words") or []
             if seg_words:
@@ -92,19 +96,31 @@ class WhisperMlxEngine(TranscriptionEngine):
                     for w in seg_words
                 ]
                 words.extend(segment_words)
-                segments.extend(speaker_aware_resegment(segment_words))
-            else:
+                all_words.extend(segment_words)
+            elif seg["text"].strip():
                 # whispermlx's own alignment fallback (no alignable
                 # characters, segment start past audio duration, or a failed
                 # backtrack -- see whispermlx/alignment.py) leaves `words`
                 # empty but keeps the segment-level start/end/text intact.
                 # `assign_word_speakers` still assigns a segment-level
-                # `speaker` in this case. Falling back to those fields keeps
-                # this stretch of the transcript instead of silently
-                # dropping it.
-                segments.append(Segment(
-                    start=seg["start"], end=seg["end"], text=seg["text"], speaker=seg.get("speaker"),
+                # `speaker` in this case. A single synthetic Word built from
+                # those fields keeps this stretch of the transcript instead
+                # of silently dropping it, while still flowing through the
+                # same resegmentation pass as everything else.
+                all_words.append(Word(
+                    text=seg["text"], start=seg["start"], end=seg["end"], speaker=seg.get("speaker"),
                 ))
+            # else: no word-level alignment AND empty/whitespace-only text --
+            # a no-speech/noise VAD chunk. Contributes nothing to the
+            # document; emitting it would leak a blank segment/line into
+            # every output format, none of which filter empty text.
+
+        # whispermlx emits segments in time order, but a synthetic word
+        # interleaved out of order would break speaker_aware_resegment's
+        # pause/speaker-change logic, which assumes chronological input --
+        # sort defensively rather than assume.
+        all_words.sort(key=lambda w: w.start)
+        segments = speaker_aware_resegment(all_words)
 
         return TranscriptDocument(
             schema_version=SCHEMA_VERSION,

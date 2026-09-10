@@ -262,3 +262,124 @@ def test_segment_with_empty_words_still_contributes_its_text(tmp_path, monkeypat
     assert doc.segments[1].end == 2.0
     # The unaligned segment contributes no word-level detail.
     assert len(doc.words) == 3
+
+
+def _install_two_segment_fake_whispermlx(monkeypatch, *, second_segment_text, second_segment_words, second_speaker):
+    """A fake whispermlx producing two ASR segments (rather than one, like
+    `_install_fake_whispermlx`'s fixed shape) so tests can control the gap
+    and content between them."""
+    fake = types.ModuleType("whispermlx")
+    fake_diarize_module = types.ModuleType("whispermlx.diarize")
+
+    def load_model(model_path, device):
+        class FakeModel:
+            def transcribe(self, audio, language, progress_callback=None):
+                return {
+                    "language": "ko",
+                    "segments": [
+                        {"start": 0.0, "end": 1.0, "text": "안녕하세요"},
+                        {"start": 1.1, "end": 1.5, "text": second_segment_text},
+                    ],
+                }
+        return FakeModel()
+
+    def load_align_model(language_code, device):
+        return object(), object()
+
+    def align(segments, model, metadata, audio, device, progress_callback=None):
+        return {
+            "segments": [
+                {
+                    "start": 0.0, "end": 1.0, "text": "안녕하세요",
+                    "words": [{"word": "안녕하세요", "start": 0.0, "end": 1.0}],
+                },
+                {
+                    "start": 1.1, "end": 1.5, "text": second_segment_text,
+                    "words": second_segment_words,
+                },
+            ]
+        }
+
+    class FakeDiarizationPipeline:
+        def __init__(self, token, device):
+            pass
+
+        def __call__(self, audio, progress_callback=None):
+            return "fake-diarization-dataframe"
+
+    def assign_word_speakers(diarization_df, aligned_result):
+        segments = aligned_result["segments"]
+        segments[0]["speaker"] = "SPEAKER_00"
+        for w in segments[0]["words"]:
+            w["speaker"] = "SPEAKER_00"
+        segments[1]["speaker"] = second_speaker
+        for w in segments[1]["words"]:
+            w["speaker"] = second_speaker
+        return {"segments": segments}
+
+    fake.load_model = load_model
+    fake.load_align_model = load_align_model
+    fake.align = align
+    fake.assign_word_speakers = assign_word_speakers
+    fake_diarize_module.DiarizationPipeline = FakeDiarizationPipeline
+    monkeypatch.setitem(sys.modules, "whispermlx", fake)
+    monkeypatch.setitem(sys.modules, "whispermlx.diarize", fake_diarize_module)
+
+
+def test_empty_text_unaligned_segment_contributes_nothing(tmp_path, monkeypatch):
+    """A whispermlx VAD chunk with no speech (no-speech/noise/music) comes
+    back with text="" and no word-level alignment. Unlike a real unalignable
+    segment with real text, this must not leak a blank Segment/word into the
+    document -- no formatter filters empty text, so a blank entry here would
+    show up as a blank line in markdown and an empty cue in the SRT."""
+    _install_two_segment_fake_whispermlx(
+        monkeypatch, second_segment_text="", second_segment_words=[], second_speaker=None,
+    )
+    from transcribe_inbox.engines.whisper_mlx_engine import WhisperMlxEngine
+
+    engine = WhisperMlxEngine(model_path="/models/x", engine_version="3.13.1", hf_token="fake-token")
+    audio_path = tmp_path / "normalized.wav"
+    _write_fake_wav(audio_path, duration_seconds=1.5)
+    request = TranscriptionRequest(
+        audio_path=audio_path, language="ko", alignment_enabled=True,
+        diarization_enabled=True, source_filename="2026-09-08.m4a",
+    )
+
+    doc = engine.transcribe(request)
+
+    assert len(doc.segments) == 1
+    assert doc.segments[0].text == "안녕하세요"
+    assert len(doc.words) == 1
+
+
+def test_same_speaker_short_pause_merges_across_whispermlx_segment_boundary(tmp_path, monkeypatch):
+    """Two whispermlx ASR segments (each with real word-level alignment) from
+    the same speaker, separated by a pause well within MAX_PAUSE_SECONDS, must
+    still merge into a single final Segment -- resegmentation must run once
+    over the whole document's chronological word list, not once per
+    originating whispermlx segment (which could never merge across a segment
+    boundary even with zero pause)."""
+    _install_two_segment_fake_whispermlx(
+        monkeypatch,
+        second_segment_text="반갑습니다",
+        second_segment_words=[{"word": "반갑습니다", "start": 1.1, "end": 1.5}],
+        second_speaker="SPEAKER_00",
+    )
+    from transcribe_inbox.engines.whisper_mlx_engine import WhisperMlxEngine
+
+    engine = WhisperMlxEngine(model_path="/models/x", engine_version="3.13.1", hf_token="fake-token")
+    audio_path = tmp_path / "normalized.wav"
+    _write_fake_wav(audio_path, duration_seconds=1.5)
+    request = TranscriptionRequest(
+        audio_path=audio_path, language="ko", alignment_enabled=True,
+        diarization_enabled=True, source_filename="2026-09-08.m4a",
+    )
+
+    doc = engine.transcribe(request)
+
+    assert len(doc.segments) == 1
+    assert doc.segments[0].text == "안녕하세요 반갑습니다"
+    assert doc.segments[0].start == 0.0
+    assert doc.segments[0].end == 1.5
+    assert doc.segments[0].speaker == "SPEAKER_00"
+    assert len(doc.words) == 2
