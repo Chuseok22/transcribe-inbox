@@ -13,6 +13,7 @@ from watchdog.observers import Observer
 from transcribe_inbox.config import FILE_STABILIZATION_SECONDS, FOLDER_QUIESCENCE_SECONDS
 from transcribe_inbox.db.jobs import (
     NewJob, register_job, reconcile_stale_processing, find_completed_jobs_with_source_still_present,
+    find_status_by_hash,
 )
 from transcribe_inbox.hashing import hash_file, hash_session, is_hidden_file
 from transcribe_inbox.publish import archive_source
@@ -22,11 +23,21 @@ from transcribe_inbox.watcher.stabilization import is_folder_quiescent, wait_for
 logger = logging.getLogger(__name__)
 
 
+def _compute_source_hash(mode: str, job_path: Path) -> str:
+    return hash_session(job_path) if mode == MULTITRACK_MODE else hash_file(job_path)
+
+
 def enqueue_stable_path(
     conn: psycopg.Connection, inbox_root: Path, *, category: str, mode: str, job_path: Path,
+    source_hash: str | None = None,
 ) -> None:
     """Registers a job for an already-stable target (a file for asr/diarize,
-    a session folder for asr-multitrack)."""
+    a session folder for asr-multitrack). `source_hash` may be passed
+    precomputed -- the startup scan already needs it for its own FAILED-
+    status pre-check (Fix 5) and passes it through here to avoid hashing the
+    same (possibly large) file/session twice."""
+    if source_hash is None:
+        source_hash = _compute_source_hash(mode, job_path)
     if mode == MULTITRACK_MODE:
         tracks = [
             {"path": str(p), "speaker_label": p.stem, "offset_seconds": 0.0}
@@ -34,15 +45,22 @@ def enqueue_stable_path(
             if p.is_file() and not is_hidden_file(p)
         ]
         job = NewJob(
-            source_path=str(job_path), source_hash=hash_session(job_path),
+            source_path=str(job_path), source_hash=source_hash,
             category=category, processing_mode=mode, tracks=tracks,
         )
     else:
         job = NewJob(
-            source_path=str(job_path), source_hash=hash_file(job_path),
+            source_path=str(job_path), source_hash=source_hash,
             category=category, processing_mode=mode,
         )
-    register_job(conn, job)
+    if register_job(conn, job) is None:
+        # A PENDING/PROCESSING/COMPLETED job for this exact content already
+        # exists -- register_job's documented idempotent skip. Benign (e.g.
+        # watchdog coalescing duplicate events for the same drop), but
+        # otherwise completely silent, so log it for anyone looking.
+        logger.info(
+            "Skipped enqueuing %s: a job for this content hash already exists", job_path,
+        )
 
 
 class PendingSession(NamedTuple):
@@ -185,12 +203,26 @@ def run_startup_reconciliation(
     reconcile_stale_processing(conn)
 
     for job in find_completed_jobs_with_source_still_present(conn):
+        source_path = Path(job.source_path)
+        current_hash = hash_session(source_path) if job.processing_mode == MULTITRACK_MODE else hash_file(source_path)
+        if current_hash != job.source_hash:
+            # Different content now sits at this path than when the job
+            # completed -- archiving it here would silently treat brand-new,
+            # never-transcribed content as this old job's leftover source.
+            # Leave it for the normal startup scan below to register as its
+            # own job.
+            logger.warning(
+                "Startup reconciliation: skipping archive for job %s -- "
+                "content at %s no longer matches the completed job's source_hash",
+                job.id, source_path,
+            )
+            continue
         # A persistently-failing move here (permissions, a dangling path)
         # must not escape and kill the daemon before it ever starts
         # watching -- launchd would just restart into the same failure
         # forever, permanently blocking the self-heal this loop exists for.
         try:
-            archive_source(Path(job.source_path), archive_root, job.category, job.processing_mode)
+            archive_source(source_path, archive_root, job.category, job.processing_mode)
         except Exception:
             logger.exception("Startup reconciliation: failed to archive already-completed job %s", job.id)
 
@@ -213,7 +245,7 @@ def _scan_for_unregistered_stable_paths(
         seen_job_paths.add(parsed.job_path)
         if parsed.mode == MULTITRACK_MODE:
             if is_folder_quiescent(parsed.job_path, quiet_seconds=FOLDER_QUIESCENCE_SECONDS):
-                enqueue_stable_path(conn, inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
+                _enqueue_unless_previously_failed(conn, inbox_root, parsed.category, parsed.mode, parsed.job_path)
             else:
                 # No live event history survives a restart, so a file's real
                 # mtime is the best available signal here (unlike the live
@@ -227,7 +259,27 @@ def _scan_for_unregistered_stable_paths(
         # truncated file as complete. Startup isn't latency-sensitive, but
         # shouldn't hang forever either.
         elif wait_for_file_stable(parsed.job_path, stable_seconds=2.0, poll_interval=0.5):
-            enqueue_stable_path(conn, inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
+            _enqueue_unless_previously_failed(conn, inbox_root, parsed.category, parsed.mode, parsed.job_path)
+
+
+def _enqueue_unless_previously_failed(
+    conn: psycopg.Connection, inbox_root: Path, category: str, mode: str, job_path: Path,
+) -> None:
+    """Startup-scan-only wrapper around enqueue_stable_path: a FAILED job for
+    this exact content must not be silently reactivated on every daemon
+    restart (potentially tens of minutes of GPU time re-trying a
+    permanently-broken file) -- that reactivation is reserved for a genuine
+    re-drop via the live watcher, or the explicit `retry` CLI command, both
+    of which still go through register_job's normal atomic upsert unchanged."""
+    source_hash = _compute_source_hash(mode, job_path)
+    existing_status = find_status_by_hash(conn, source_hash)
+    if existing_status == "FAILED":
+        logger.info(
+            "Startup scan: skipping previously-failed job for %s (source_hash=%s) -- "
+            "use `transcribe-inbox retry` to reactivate it explicitly", job_path, source_hash,
+        )
+        return
+    enqueue_stable_path(conn, inbox_root, category=category, mode=mode, job_path=job_path, source_hash=source_hash)
 
 
 def _latest_mtime(folder: Path) -> float:

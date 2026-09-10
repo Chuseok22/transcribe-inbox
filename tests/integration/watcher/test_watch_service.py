@@ -257,6 +257,7 @@ def test_handle_swallows_exceptions_and_rolls_back_instead_of_killing_the_watch_
 
 def test_run_startup_reconciliation_requeues_and_self_heals(tmp_path, conn):
     from transcribe_inbox.db.jobs import register_job, NewJob, claim_next_pending_job, mark_completed
+    from transcribe_inbox.hashing import hash_file
 
     inbox = tmp_path / "inbox"
     archive = tmp_path / "archive"
@@ -265,12 +266,17 @@ def test_run_startup_reconciliation_requeues_and_self_heals(tmp_path, conn):
 
     stale = inbox / "stale.m4a"
     stale.write_bytes(b"x")
-    stale_id = register_job(conn, NewJob(str(stale), "hash-stale", "미분류", "asr"))
+    # source_hash must be the *real* content hash -- reconcile_stale_processing
+    # (called by run_startup_reconciliation) now recomputes and compares it
+    # (Fix 4) before requeuing.
+    stale_id = register_job(conn, NewJob(str(stale), hash_file(stale), "미분류", "asr"))
     claim_next_pending_job(conn)  # -> PROCESSING, simulating a crash mid-job
 
     left_behind = inbox / "left_behind.m4a"
     left_behind.write_bytes(b"y")
-    completed_id = register_job(conn, NewJob(str(left_behind), "hash-completed", "미분류", "asr"))
+    # Same requirement here -- the self-heal archive step now verifies
+    # left_behind's content still matches source_hash before archiving it.
+    completed_id = register_job(conn, NewJob(str(left_behind), hash_file(left_behind), "미분류", "asr"))
     claim_next_pending_job(conn)
     mark_completed(conn, completed_id, engine="whisper.cpp", engine_version="1.0.0", model_name="large-v3", metrics={})
 
@@ -283,6 +289,70 @@ def test_run_startup_reconciliation_requeues_and_self_heals(tmp_path, conn):
     assert stale_status == "PENDING"
     assert not left_behind.exists()
     assert (archive / "미분류" / "asr" / "left_behind.m4a").exists()
+
+
+def test_run_startup_reconciliation_skips_archiving_completed_job_when_content_changed(tmp_path, conn):
+    """If different content now sits at a COMPLETED job's source_path than
+    when it finished (Fix 2's old overwrite bug made this reachable, but
+    it's a real risk independent of that too), the self-heal step must not
+    archive it as that old job's leftover source -- it must leave it alone
+    so the normal startup scan picks it up as its own new job."""
+    from transcribe_inbox.db.jobs import register_job, NewJob, claim_next_pending_job, mark_completed
+    from transcribe_inbox.hashing import hash_file
+
+    inbox = tmp_path / "inbox"
+    archive = tmp_path / "archive"
+    inbox.mkdir()
+    archive.mkdir()
+
+    source = inbox / "left_behind.m4a"
+    source.write_bytes(b"original")
+    completed_id = register_job(conn, NewJob(str(source), hash_file(source), "미분류", "asr"))
+    claim_next_pending_job(conn)
+    mark_completed(conn, completed_id, engine="whisper.cpp", engine_version="1.0.0", model_name="large-v3", metrics={})
+
+    source.write_bytes(b"brand new unrelated content")  # a fresh drop landed at the same path
+
+    handler = InboxEventHandler(conn, inbox)
+    run_startup_reconciliation(conn, inbox, archive, handler)
+
+    # Not archived under the old job's identity...
+    assert source.exists()
+    assert not (archive / "미분류" / "asr" / "left_behind.m4a").exists()
+    # ...but the startup scan (which run_startup_reconciliation also runs)
+    # picks it up as a brand-new job of its own.
+    rows = conn.execute(
+        "SELECT status FROM transcription_job WHERE source_hash = %s", (hash_file(source),),
+    ).fetchall()
+    assert [r[0] for r in rows] == ["PENDING"]
+
+
+def test_startup_scan_skips_a_previously_failed_file_instead_of_reactivating_it(tmp_path, conn):
+    """The startup scan must not reactivate a FAILED job for a file still
+    sitting in the inbox on every daemon restart (Fix 5) -- that would waste
+    GPU time retrying a permanently-broken file forever. Reactivation stays
+    reserved for a genuine re-drop via the live watcher or the explicit
+    `retry` CLI command."""
+    from transcribe_inbox.db.jobs import register_job, NewJob, mark_failed
+    from transcribe_inbox.hashing import hash_file
+
+    inbox = tmp_path / "inbox"
+    archive = tmp_path / "archive"
+    (inbox / "미분류").mkdir(parents=True)
+    archive.mkdir()
+
+    broken = inbox / "미분류" / "broken.m4a"
+    broken.write_bytes(b"corrupt-audio")
+    job_id = register_job(conn, NewJob(str(broken), hash_file(broken), "미분류", "asr"))
+    mark_failed(conn, job_id, error_message="unsupported codec")
+
+    handler = InboxEventHandler(conn, inbox)
+    run_startup_reconciliation(conn, inbox, archive, handler)
+
+    row = conn.execute(
+        "SELECT status, retry_count FROM transcription_job WHERE id = %s", (job_id,)
+    ).fetchone()
+    assert row == ("FAILED", 0)  # untouched, not reactivated to PENDING
 
 
 def test_run_startup_reconciliation_seeds_pending_session_for_not_yet_quiescent_multitrack(tmp_path, conn):

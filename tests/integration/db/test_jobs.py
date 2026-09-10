@@ -8,6 +8,7 @@ from transcribe_inbox.db.jobs import (
     NewJob, register_job, claim_next_pending_job, mark_completed, mark_failed,
     reconcile_stale_processing, find_completed_jobs_with_source_still_present,
 )
+from transcribe_inbox.hashing import hash_file
 
 pytestmark = pytest.mark.integration
 
@@ -73,8 +74,10 @@ def test_claim_next_pending_job_returns_none_when_queue_empty(conn):
 def test_reconcile_stale_processing_requeues_when_source_exists(conn, tmp_path):
     source = tmp_path / "x.m4a"
     source.write_bytes(b"x")
+    # source_hash must be the *real* content hash -- reconcile_stale_processing
+    # now recomputes and compares it (Fix 4) before requeuing.
     job_id = register_job(conn, NewJob(
-        source_path=str(source), source_hash="hash-e", category="미분류", processing_mode="asr",
+        source_path=str(source), source_hash=hash_file(source), category="미분류", processing_mode="asr",
     ))
     claim_next_pending_job(conn)  # -> PROCESSING
 
@@ -82,6 +85,26 @@ def test_reconcile_stale_processing_requeues_when_source_exists(conn, tmp_path):
 
     row = conn.execute("SELECT status FROM transcription_job WHERE id = %s", (job_id,)).fetchone()
     assert row[0] == "PENDING"
+
+
+def test_reconcile_stale_processing_fails_job_when_content_changed(conn, tmp_path):
+    """A stale PROCESSING job whose path now holds *different* content than
+    when it was registered must not be silently requeued and transcribed
+    under the old job's identity (Fix 4)."""
+    source = tmp_path / "x.m4a"
+    source.write_bytes(b"original content")
+    job_id = register_job(conn, NewJob(
+        source_path=str(source), source_hash=hash_file(source), category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+    source.write_bytes(b"totally different content")  # simulates a new file landing at the same path
+
+    reconcile_stale_processing(conn)
+
+    row = conn.execute(
+        "SELECT status, error_code FROM transcription_job WHERE id = %s", (job_id,)
+    ).fetchone()
+    assert row == ("FAILED", "SOURCE_CHANGED")
 
 
 def test_reconcile_stale_processing_fails_job_when_source_missing(conn):

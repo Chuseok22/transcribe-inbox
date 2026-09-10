@@ -47,7 +47,7 @@ def test_process_one_job_publishes_and_marks_completed(tmp_path, monkeypatch):
     source = tmp_path / "inbox" / "컴퓨터네트워크" / "2주차.m4a"
     source.parent.mkdir(parents=True)
     source.write_bytes(b"audio")
-    job = Job(id="job-1", source_path=str(source), category="컴퓨터네트워크", processing_mode="asr", tracks=None)
+    job = Job(id="job-1", source_path=str(source), source_hash="hash-1", category="컴퓨터네트워크", processing_mode="asr", tracks=None)
 
     monkeypatch.setattr("transcribe_inbox.worker.engine_for_mode", lambda mode: FakeEngine())
     monkeypatch.setattr(
@@ -91,7 +91,7 @@ def test_process_one_job_marks_failed_on_engine_error(tmp_path, monkeypatch):
     source = tmp_path / "inbox" / "x.m4a"
     source.parent.mkdir(parents=True)
     source.write_bytes(b"audio")
-    job = Job(id="job-2", source_path=str(source), category="미분류", processing_mode="asr", tracks=None)
+    job = Job(id="job-2", source_path=str(source), source_hash="hash-2", category="미분류", processing_mode="asr", tracks=None)
 
     class BrokenEngine(FakeEngine):
         def transcribe(self, request, *, progress_callback=None):
@@ -124,7 +124,7 @@ def test_process_one_job_cleans_up_staging_dir_when_publish_fails(tmp_path, monk
     source = tmp_path / "inbox" / "x.m4a"
     source.parent.mkdir(parents=True)
     source.write_bytes(b"audio")
-    job = Job(id="job-4", source_path=str(source), category="미분류", processing_mode="asr", tracks=None)
+    job = Job(id="job-4", source_path=str(source), source_hash="hash-4", category="미분류", processing_mode="asr", tracks=None)
 
     monkeypatch.setattr("transcribe_inbox.worker.engine_for_mode", lambda mode: FakeEngine())
     monkeypatch.setattr(
@@ -187,7 +187,7 @@ def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     track_a.write_bytes(b"a")
     track_b.write_bytes(b"b")
     job = Job(
-        id="job-3", source_path=str(session), category="캡스톤", processing_mode="asr-multitrack",
+        id="job-3", source_path=str(session), source_hash="hash-3", category="캡스톤", processing_mode="asr-multitrack",
         tracks=[
             {"path": str(track_a), "speaker_label": "백지훈", "offset_seconds": 0.0},
             {"path": str(track_b), "speaker_label": "홍길동", "offset_seconds": 120.0},
@@ -253,7 +253,7 @@ def test_process_one_job_keeps_completed_status_when_archive_fails(tmp_path, mon
     source = tmp_path / "inbox" / "컴퓨터네트워크" / "2주차.m4a"
     source.parent.mkdir(parents=True)
     source.write_bytes(b"audio")
-    job = Job(id="job-5", source_path=str(source), category="컴퓨터네트워크", processing_mode="asr", tracks=None)
+    job = Job(id="job-5", source_path=str(source), source_hash="hash-5", category="컴퓨터네트워크", processing_mode="asr", tracks=None)
 
     monkeypatch.setattr("transcribe_inbox.worker.engine_for_mode", lambda mode: FakeEngine())
     monkeypatch.setattr(
