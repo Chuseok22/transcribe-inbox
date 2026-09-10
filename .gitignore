@@ -5,3 +5,5 @@ issue/
 report/
 .report/
 .DS_Store
+__pycache__/
+*.pyc
