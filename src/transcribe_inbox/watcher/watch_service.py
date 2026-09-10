@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Callable
+from typing import Callable, NamedTuple
 from pathlib import Path
 
 import psycopg
@@ -45,6 +45,15 @@ def enqueue_stable_path(
     register_job(conn, job)
 
 
+class PendingSession(NamedTuple):
+    """A multitrack session candidate awaiting quiescence: the wall-clock
+    time the watcher last observed activity for it, and the category it
+    resolved to (via `parse_inbox_path`) when first seeded -- so a later
+    poll never has to re-derive the category from the path itself."""
+    last_event_at: float
+    category: str
+
+
 class InboxEventHandler(FileSystemEventHandler):
     """Single-file targets (asr/diarize) are stabilized and enqueued
     directly on their triggering event. Multitrack session folders cannot
@@ -63,7 +72,7 @@ class InboxEventHandler(FileSystemEventHandler):
     def __init__(self, conn: psycopg.Connection, inbox_root: Path):
         self._conn = conn
         self._inbox_root = inbox_root
-        self._pending_sessions: dict[Path, float] = {}
+        self._pending_sessions: dict[Path, PendingSession] = {}
         self._lock = threading.Lock()
 
     def on_created(self, event) -> None:
@@ -79,26 +88,43 @@ class InboxEventHandler(FileSystemEventHandler):
         self._handle(Path(event.dest_path))
 
     def add_pending_session(
-        self, path: Path, *, last_event_at: float | None = None, now_fn: Callable[[], float] = time.time,
+        self, path: Path, category: str, *, last_event_at: float | None = None, now_fn: Callable[[], float] = time.time,
     ) -> None:
         with self._lock:
-            self._pending_sessions[path] = last_event_at if last_event_at is not None else now_fn()
+            self._pending_sessions[path] = PendingSession(
+                last_event_at if last_event_at is not None else now_fn(), category,
+            )
 
     def poll_pending_sessions(self, *, now_fn=time.time) -> None:
         with self._lock:
             candidates = dict(self._pending_sessions)
-        for session_path, last_event_at in candidates.items():
+        for session_path, pending in candidates.items():
             if not session_path.exists():
                 with self._lock:
                     self._pending_sessions.pop(session_path, None)
                 continue
-            if now_fn() - last_event_at >= FOLDER_QUIESCENCE_SECONDS:
-                category = session_path.relative_to(self._inbox_root).parts[0]
-                enqueue_stable_path(
-                    self._conn, self._inbox_root, category=category, mode=MULTITRACK_MODE, job_path=session_path,
-                )
+            if now_fn() - pending.last_event_at >= FOLDER_QUIESCENCE_SECONDS:
+                # Isolated per-candidate: a vanished track, a hashing error,
+                # or a DB error registering this one session must not stop
+                # the remaining candidates in this poll from being processed,
+                # and must not leave the connection in a failed-transaction
+                # state for the caller (Task 15's main loop).
+                try:
+                    enqueue_stable_path(
+                        self._conn, self._inbox_root,
+                        category=pending.category, mode=MULTITRACK_MODE, job_path=session_path,
+                    )
+                except Exception:
+                    logger.exception("Error enqueuing pending multitrack session %s", session_path)
+                    self._safe_rollback()
+                    continue
                 with self._lock:
-                    self._pending_sessions.pop(session_path, None)
+                    # Only pop the entry we actually acted on -- if a new
+                    # event refreshed it (a track arrived) while we were
+                    # hashing outside the lock, that fresh entry must survive
+                    # so a future poll re-evaluates it instead of losing it.
+                    if self._pending_sessions.get(session_path) == pending:
+                        self._pending_sessions.pop(session_path, None)
 
     def _handle(self, path: Path) -> None:
         # watchdog's dispatcher thread only catches queue.Empty around this
@@ -109,7 +135,16 @@ class InboxEventHandler(FileSystemEventHandler):
             self._handle_unsafe(path)
         except Exception:
             logger.exception("Error handling inbox event for %s", path)
+            self._safe_rollback()
+
+    def _safe_rollback(self) -> None:
+        # If the connection is already broken (the same error that got us
+        # here may have broken it), rollback() itself can raise -- swallow
+        # that too, since there's nothing left to roll back to.
+        try:
             self._conn.rollback()
+        except Exception:
+            logger.exception("Error rolling back connection after a previous error")
 
     def _handle_unsafe(self, path: Path) -> None:
         if path.is_dir() or is_hidden_file(path):
@@ -119,7 +154,7 @@ class InboxEventHandler(FileSystemEventHandler):
             logger.warning("Skipping ambiguous inbox path: %s", path)
             return
         if parsed.mode == MULTITRACK_MODE:
-            self.add_pending_session(parsed.job_path)  # stamps real "now" -- this event just happened
+            self.add_pending_session(parsed.job_path, parsed.category)  # stamps real "now" -- this event just happened
         elif wait_for_file_stable(parsed.job_path, stable_seconds=FILE_STABILIZATION_SECONDS):
             enqueue_stable_path(self._conn, self._inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
 
@@ -160,7 +195,9 @@ def _scan_for_unregistered_stable_paths(
                 # No live event history survives a restart, so a file's real
                 # mtime is the best available signal here (unlike the live
                 # handler path above, which deliberately avoids mtime).
-                handler.add_pending_session(parsed.job_path, last_event_at=_latest_mtime(parsed.job_path))
+                handler.add_pending_session(
+                    parsed.job_path, parsed.category, last_event_at=_latest_mtime(parsed.job_path),
+                )
         elif wait_for_file_stable(parsed.job_path, stable_seconds=0.0, poll_interval=0.0):
             enqueue_stable_path(conn, inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
 

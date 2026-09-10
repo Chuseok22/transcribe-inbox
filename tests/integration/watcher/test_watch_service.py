@@ -61,7 +61,7 @@ def test_multitrack_session_registers_only_once_polling_shows_quiescence(tmp_pat
 
     handler = InboxEventHandler(conn, inbox)
     # Simulates the watchdog event that fired on track creation, observed at t=1000.0.
-    handler.add_pending_session(session, now_fn=lambda: 1000.0)
+    handler.add_pending_session(session, "캡스톤", now_fn=lambda: 1000.0)
 
     # Only 10s have passed since that observation -> not quiescent yet, no job.
     handler.poll_pending_sessions(now_fn=lambda: 1000.0 + 10.0)
@@ -93,13 +93,125 @@ def test_multitrack_session_uses_event_observation_time_not_stale_file_mtime(tmp
     os.utime(track, (stale_mtime, stale_mtime))
 
     handler = InboxEventHandler(conn, inbox)
-    handler.add_pending_session(session, now_fn=lambda: 1000.0)  # watcher observed this "now"
+    handler.add_pending_session(session, "캡스톤", now_fn=lambda: 1000.0)  # watcher observed this "now"
 
     # The file's own mtime is ancient, but only 10s have passed since the
     # watcher's observation -> must not register (a mtime-based re-check
     # would wrongly say this is already quiescent).
     handler.poll_pending_sessions(now_fn=lambda: 1000.0 + 10.0)
     assert conn.execute("SELECT count(*) FROM transcription_job").fetchone()[0] == 0
+
+
+def test_poll_pending_sessions_uses_stored_category_not_path_derived_one(tmp_path, conn):
+    """poll_pending_sessions must register with the category captured at
+    seed time (via parse_inbox_path, from wherever the candidate was first
+    added), never re-derive it by slicing the session path -- otherwise the
+    two derivations can diverge. Seeding a category that intentionally
+    differs from the path's own first segment proves the stored value wins."""
+    inbox = tmp_path / "inbox"
+    session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
+    session.mkdir(parents=True)
+    (session / "백지훈.m4a").write_bytes(b"a")
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.add_pending_session(session, "다른카테고리", now_fn=lambda: 1000.0)
+    handler.poll_pending_sessions(now_fn=lambda: 1000.0 + 120.0)
+
+    row = conn.execute("SELECT category FROM transcription_job").fetchone()
+    assert row == ("다른카테고리",)
+
+
+def test_poll_pending_sessions_isolates_exceptions_per_candidate(tmp_path, conn, monkeypatch):
+    """A candidate that fails to enqueue (a vanished track, a DB error) must
+    not stop the remaining candidates in the same poll from being processed,
+    and must not let the exception escape -- unlike `_handle`, nothing calls
+    poll_pending_sessions with its own guard (Task 15's main loop)."""
+    inbox = tmp_path / "inbox"
+    failing_session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
+    failing_session.mkdir(parents=True)
+    (failing_session / "a.m4a").write_bytes(b"a")
+    ok_session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-09"
+    ok_session.mkdir(parents=True)
+    (ok_session / "b.m4a").write_bytes(b"b")
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.add_pending_session(failing_session, "캡스톤", now_fn=lambda: 1000.0)
+    handler.add_pending_session(ok_session, "캡스톤", now_fn=lambda: 1000.0)
+
+    real_enqueue = enqueue_stable_path
+
+    def flaky_enqueue(conn_, inbox_root, *, category, mode, job_path):
+        if job_path == failing_session:
+            raise RuntimeError("disk error")
+        return real_enqueue(conn_, inbox_root, category=category, mode=mode, job_path=job_path)
+
+    monkeypatch.setattr("transcribe_inbox.watcher.watch_service.enqueue_stable_path", flaky_enqueue)
+
+    handler.poll_pending_sessions(now_fn=lambda: 1000.0 + 120.0)  # must not raise
+
+    rows = conn.execute("SELECT source_path FROM transcription_job").fetchall()
+    assert [r[0] for r in rows] == [str(ok_session)]
+    # The failing candidate stays pending so a future poll can retry it.
+    assert failing_session in handler._pending_sessions
+
+
+def test_poll_pending_sessions_preserves_entry_refreshed_mid_enqueue(tmp_path, conn, monkeypatch):
+    """If a new track arrives (refreshing the pending entry) while
+    enqueue_stable_path is in flight for that same session -- hashing takes
+    time, and the lock is released during it -- popping the candidate
+    unconditionally afterward would silently drop that fresh entry. That's
+    the exact "multitrack session registers with tracks missing" failure
+    class `_pending_sessions` exists to prevent, reached via a different
+    path. Only the exact snapshot acted on may be popped."""
+    inbox = tmp_path / "inbox"
+    session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
+    session.mkdir(parents=True)
+    (session / "백지훈.m4a").write_bytes(b"a")
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.add_pending_session(session, "캡스톤", now_fn=lambda: 1000.0)
+
+    real_enqueue = enqueue_stable_path
+
+    def enqueue_then_refresh(conn_, inbox_root, *, category, mode, job_path):
+        result = real_enqueue(conn_, inbox_root, category=category, mode=mode, job_path=job_path)
+        # Simulates the watchdog thread observing a new track for this same
+        # session while this enqueue call was still in flight.
+        handler.add_pending_session(job_path, category, now_fn=lambda: 2000.0)
+        return result
+
+    monkeypatch.setattr("transcribe_inbox.watcher.watch_service.enqueue_stable_path", enqueue_then_refresh)
+
+    handler.poll_pending_sessions(now_fn=lambda: 1000.0 + 120.0)
+
+    assert conn.execute("SELECT count(*) FROM transcription_job").fetchone()[0] == 1
+    # The freshly-refreshed pending entry must survive, not be dropped.
+    assert session in handler._pending_sessions
+    assert handler._pending_sessions[session].last_event_at == 2000.0
+
+
+def test_handle_swallows_rollback_failure_too(tmp_path, conn, monkeypatch):
+    """If rollback() itself raises (e.g. the connection was already broken
+    by the same error that made _handle_unsafe raise), that must not escape
+    _handle either -- otherwise wrapping _handle_unsafe defeats its own
+    purpose in exactly the scenario it exists to handle."""
+    inbox = tmp_path / "inbox"
+    (inbox / "컴퓨터네트워크").mkdir(parents=True)
+    audio = inbox / "컴퓨터네트워크" / "2주차.m4a"
+    audio.write_bytes(b"audio-bytes")
+
+    handler = InboxEventHandler(conn, inbox)
+    monkeypatch.setattr(
+        "transcribe_inbox.watcher.watch_service.wait_for_file_stable",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("disk error")),
+    )
+
+    def broken_rollback():
+        raise psycopg.OperationalError("connection closed")
+
+    monkeypatch.setattr(conn, "rollback", broken_rollback)
+
+    handler.on_created(SimpleNamespace(src_path=str(audio)))  # must not raise
 
 
 def test_on_moved_handles_a_file_relocated_within_inbox(tmp_path, conn):
