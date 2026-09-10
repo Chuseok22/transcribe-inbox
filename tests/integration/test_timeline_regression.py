@@ -27,15 +27,18 @@ def _expected_second_segment_start(fixture_name: str) -> float:
     return metadata["expected_second_segment_start_seconds"]
 
 
-def _skip_unless_ready(*, fixture_name: str, binary: str | None = None):
+def _skip_unless_ready(*, fixture_name: str, binary: str | None = None, model_paths: list[str] | None = None):
     if binary is not None and not Path(binary).exists():
         pytest.skip(f"{binary} not installed")
+    for model_path in model_paths or []:
+        if not Path(model_path).exists():
+            pytest.skip(f"model not found: {model_path}")
     if not (FIXTURES_DIR / f"{fixture_name}.wav").exists():
         pytest.skip("fixtures not generated — run tests/fixtures/generate_fixtures.py")
 
 
 def test_whisper_cpp_preserves_timeline_on_normal_fixture():
-    _skip_unless_ready(fixture_name="timeline_normal", binary=WHISPER_CLI)
+    _skip_unless_ready(fixture_name="timeline_normal", binary=WHISPER_CLI, model_paths=[VAD_MODEL, ASR_MODEL])
     engine = WhisperCppEngine(WHISPER_CLI, VAD_MODEL, ASR_MODEL, engine_version="unknown")
     request = TranscriptionRequest(
         audio_path=FIXTURES_DIR / "timeline_normal.wav", language="ko",
@@ -49,7 +52,7 @@ def test_whisper_cpp_preserves_timeline_on_normal_fixture():
 
 
 def test_whisper_cpp_does_not_pull_timestamp_forward_across_long_silence():
-    _skip_unless_ready(fixture_name="timeline_long_silence", binary=WHISPER_CLI)
+    _skip_unless_ready(fixture_name="timeline_long_silence", binary=WHISPER_CLI, model_paths=[VAD_MODEL, ASR_MODEL])
     engine = WhisperCppEngine(WHISPER_CLI, VAD_MODEL, ASR_MODEL, engine_version="unknown")
     request = TranscriptionRequest(
         audio_path=FIXTURES_DIR / "timeline_long_silence.wav", language="ko",
@@ -67,7 +70,11 @@ def test_whisper_cpp_does_not_pull_timestamp_forward_across_long_silence():
 @pytest.mark.skipif(not HUGGINGFACE_TOKEN, reason="HUGGINGFACE_TOKEN not set")
 def test_whispermlx_preserves_timeline_on_normal_fixture():
     """Spec §9-6 requires both engines, not just whisper.cpp."""
-    _skip_unless_ready(fixture_name="timeline_normal")
+    try:
+        import whispermlx  # noqa: F401
+    except ImportError:
+        pytest.skip("whispermlx not installed")
+    _skip_unless_ready(fixture_name="timeline_normal", model_paths=[WHISPER_MLX_MODEL])
     engine = WhisperMlxEngine(WHISPER_MLX_MODEL, engine_version="unknown", hf_token=HUGGINGFACE_TOKEN)
     request = TranscriptionRequest(
         audio_path=FIXTURES_DIR / "timeline_normal.wav", language="ko",
