@@ -146,6 +146,39 @@ def test_process_one_job_cleans_up_staging_dir_when_publish_fails(tmp_path, monk
     assert list(staging_root.iterdir()) == []  # no leftover partial staging directories
 
 
+class MultiTrackFakeEngine(FakeEngine):
+    """Unlike FakeEngine, returns a segment whose start/end depend on which
+    track is being transcribed (keyed by request.source_filename, which
+    worker.py sets to the *track's* filename -- see
+    _transcribe_multitrack_session). This lets a test prove the
+    offset-shift math and the final sort are both actually exercised,
+    rather than both being no-ops because every track produced an
+    identical segment."""
+
+    SEGMENTS_BY_FILENAME = {
+        # Raw (pre-offset) segment times, deliberately chosen so that:
+        # - Track A's raw segment (200-205) starts AFTER track B's raw
+        #   segment (0-5), but track B's +120s offset should push it back
+        #   ahead of track A in the final, correctly-sorted output --
+        #   i.e. the correct final order is the REVERSE of the tracks'
+        #   list order / engine-call order, so a missing or broken sort
+        #   would leave the segments in the wrong order.
+        "백지훈.m4a": (200.0, 205.0),
+        "홍길동.m4a": (0.0, 5.0),
+    }
+
+    def transcribe(self, request, *, progress_callback=None):
+        if progress_callback:
+            progress_callback(100.0, "TRANSCRIBING")
+        start, end = self.SEGMENTS_BY_FILENAME[request.source_filename]
+        return TranscriptDocument(
+            schema_version=SCHEMA_VERSION, pipeline_version="0.1.0", engine=self.name,
+            engine_version=self.version, model="ggml-large-v3", language="ko",
+            source_filename=request.source_filename, audio_duration_seconds=5.0,
+            segments=[Segment(start=start, end=end, text="안녕하세요", speaker=None)],
+        )
+
+
 def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     session = tmp_path / "inbox" / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
@@ -157,11 +190,11 @@ def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
         id="job-3", source_path=str(session), category="캡스톤", processing_mode="asr-multitrack",
         tracks=[
             {"path": str(track_a), "speaker_label": "백지훈", "offset_seconds": 0.0},
-            {"path": str(track_b), "speaker_label": "홍길동", "offset_seconds": 0.0},
+            {"path": str(track_b), "speaker_label": "홍길동", "offset_seconds": 120.0},
         ],
     )
 
-    monkeypatch.setattr("transcribe_inbox.worker.engine_for_mode", lambda mode: FakeEngine())
+    monkeypatch.setattr("transcribe_inbox.worker.engine_for_mode", lambda mode: MultiTrackFakeEngine())
     monkeypatch.setattr(
         "transcribe_inbox.worker.normalize_to_wav",
         lambda path, **kwargs: tmp_path / f"normalized-{Path(path).stem}.wav",
@@ -188,8 +221,23 @@ def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     assert marks["completed"][1]["metrics"]["trackCount"] == 2
     published_json = output_root / "캡스톤" / "2026-09-08" / "transcript.json"
     assert published_json.exists()
-    speakers = {seg["speaker"] for seg in json.loads(published_json.read_text())["segments"]}
+    segments = json.loads(published_json.read_text())["segments"]
+    speakers = {seg["speaker"] for seg in segments}
     assert speakers == {"백지훈", "홍길동"}
+
+    # Offset-shift: each track's segment must be shifted by its own
+    # offset_seconds, not left at the raw engine-reported times.
+    by_speaker = {seg["speaker"]: seg for seg in segments}
+    assert by_speaker["백지훈"]["start"] == 200.0  # offset 0.0 -> unchanged
+    assert by_speaker["백지훈"]["end"] == 205.0
+    assert by_speaker["홍길동"]["start"] == 120.0  # offset 120.0 -> 0.0 + 120.0
+    assert by_speaker["홍길동"]["end"] == 125.0  # 5.0 + 120.0
+
+    # Sort: after shifting, 홍길동's segment (120.0) starts before
+    # 백지훈's (200.0) -- the REVERSE of the tracks' list/engine-call
+    # order -- so this only passes if the segments are actually sorted
+    # by (post-shift) start time.
+    assert [seg["speaker"] for seg in segments] == ["홍길동", "백지훈"]
 
 
 def test_process_one_job_keeps_completed_status_when_archive_fails(tmp_path, monkeypatch):
@@ -245,3 +293,7 @@ def test_process_one_job_keeps_completed_status_when_archive_fails(tmp_path, mon
     assert marks["completed"] is not None
     assert marks["failed"] is None
     assert notified_failed == []
+    # Finding #1 fix: notify_completed() now runs before archive_source(), so
+    # the user is still reliably notified of completion even though the
+    # archive move fails right after.
+    assert notified_completed == [("컴퓨터네트워크", "2주차.m4a")]

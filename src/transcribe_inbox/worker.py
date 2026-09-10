@@ -87,8 +87,8 @@ def process_one_job(conn, job, staging_root: Path) -> None:
     # (find_completed_jobs_with_source_still_present, Task 11/14) retry the
     # archive move on the next daemon restart.
     try:
-        archive_source(source_path, ARCHIVE_ROOT, job.category, job.processing_mode)
         notify_completed(job.category, source_path.name)
+        archive_source(source_path, ARCHIVE_ROOT, job.category, job.processing_mode)
     except Exception:
         logger.exception("Job %s completed but post-completion archive/notify failed", job.id)
 
