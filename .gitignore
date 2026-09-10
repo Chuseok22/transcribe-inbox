@@ -1,0 +1,7 @@
+docs/
+.docs/
+issue/
+.issue/
+report/
+.report/
+.DS_Store
