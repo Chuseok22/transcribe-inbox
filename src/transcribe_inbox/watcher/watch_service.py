@@ -73,6 +73,12 @@ class InboxEventHandler(FileSystemEventHandler):
         self._conn = conn
         self._inbox_root = inbox_root
         self._pending_sessions: dict[Path, PendingSession] = {}
+        # Paths currently being stabilized+enqueued by _handle_unsafe's
+        # single-file branch -- lets a re-entrant event for the same path
+        # (FSEvents coalesces a large copy into a `modified` roughly every
+        # ~1s) skip straight through instead of blocking the one watchdog
+        # dispatch thread behind a redundant full wait+re-hash.
+        self._in_flight: set[Path] = set()
         self._lock = threading.Lock()
 
     def on_created(self, event) -> None:
@@ -155,8 +161,18 @@ class InboxEventHandler(FileSystemEventHandler):
             return
         if parsed.mode == MULTITRACK_MODE:
             self.add_pending_session(parsed.job_path, parsed.category)  # stamps real "now" -- this event just happened
-        elif wait_for_file_stable(parsed.job_path, stable_seconds=FILE_STABILIZATION_SECONDS):
-            enqueue_stable_path(self._conn, self._inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
+            return
+
+        with self._lock:
+            if parsed.job_path in self._in_flight:
+                return  # already being stabilized+enqueued by an earlier, still-in-flight event
+            self._in_flight.add(parsed.job_path)
+        try:
+            if wait_for_file_stable(parsed.job_path, stable_seconds=FILE_STABILIZATION_SECONDS):
+                enqueue_stable_path(self._conn, self._inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
+        finally:
+            with self._lock:
+                self._in_flight.discard(parsed.job_path)
 
 
 def run_startup_reconciliation(
@@ -169,7 +185,14 @@ def run_startup_reconciliation(
     reconcile_stale_processing(conn)
 
     for job in find_completed_jobs_with_source_still_present(conn):
-        archive_source(Path(job.source_path), archive_root, job.category, job.processing_mode)
+        # A persistently-failing move here (permissions, a dangling path)
+        # must not escape and kill the daemon before it ever starts
+        # watching -- launchd would just restart into the same failure
+        # forever, permanently blocking the self-heal this loop exists for.
+        try:
+            archive_source(Path(job.source_path), archive_root, job.category, job.processing_mode)
+        except Exception:
+            logger.exception("Startup reconciliation: failed to archive already-completed job %s", job.id)
 
     _scan_for_unregistered_stable_paths(conn, inbox_root, handler)
 
@@ -198,7 +221,12 @@ def _scan_for_unregistered_stable_paths(
                 handler.add_pending_session(
                     parsed.job_path, parsed.category, last_event_at=_latest_mtime(parsed.job_path),
                 )
-        elif wait_for_file_stable(parsed.job_path, stable_seconds=0.0, poll_interval=0.0):
+        # stable_seconds=0.0 would return True on the very first size sample
+        # (nothing to compare it against yet) -- a real, if short, window is
+        # needed so a daemon restart landing mid-copy doesn't register a
+        # truncated file as complete. Startup isn't latency-sensitive, but
+        # shouldn't hang forever either.
+        elif wait_for_file_stable(parsed.job_path, stable_seconds=2.0, poll_interval=0.5):
             enqueue_stable_path(conn, inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
 
 

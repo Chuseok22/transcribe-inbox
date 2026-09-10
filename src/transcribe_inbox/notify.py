@@ -3,7 +3,13 @@ import subprocess
 
 
 def notify(title: str, message: str) -> None:
-    script = f'display notification "{message}" with title "{title}" sound name "Glass"'
+    # notify_failed() interpolates str(exc), which can carry arbitrary
+    # whisper-cli/ffmpeg stderr -- escape backslash first, then quote, so
+    # newly-inserted backslashes don't get double-escaped, or a stray `"`
+    # could break the AppleScript source and silently drop the notification.
+    escaped_title = title.replace("\\", "\\\\").replace('"', '\\"')
+    escaped_message = message.replace("\\", "\\\\").replace('"', '\\"')
+    script = f'display notification "{escaped_message}" with title "{escaped_title}" sound name "Glass"'
     subprocess.run(["osascript", "-e", script], check=False)
 
 

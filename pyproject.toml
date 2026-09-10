@@ -21,3 +21,7 @@ packages = ["src/transcribe_inbox"]
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+markers = ["integration: requires external services (PostgreSQL, whisper-cli, etc.)"]
+addopts = "-m 'not integration'"

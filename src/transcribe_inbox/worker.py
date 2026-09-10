@@ -1,7 +1,9 @@
 from __future__ import annotations
+import importlib.metadata
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import time
 from pathlib import Path
@@ -27,18 +29,48 @@ STALL_WARNING_SECONDS = 1800.0
 FOOTPRINT_SAMPLE_INTERVAL_SECONDS = 30.0
 
 
+def _whispermlx_version() -> str:
+    # Auto-detected from the installed package is more trustworthy than a
+    # possibly-stale env var, so prefer it whenever it succeeds; the env var
+    # (default "unknown") is only the fallback for the should-never-happen
+    # case where metadata lookup fails for a hard dependency.
+    try:
+        return importlib.metadata.version("whispermlx")
+    except Exception:
+        return os.environ.get("WHISPERMLX_VERSION", "unknown")
+
+
+def _whisper_cpp_version(binary_path: str) -> str:
+    # Same precedence as _whispermlx_version: prefer the binary's own
+    # reported version over a possibly-stale env var. whisper-cli's
+    # `--version` behavior is unverified on this machine (binary absent), so
+    # this must fail safe on absolutely anything -- missing binary, non-zero
+    # exit, timeout, or unexpected output all fall back to the env var.
+    try:
+        result = subprocess.run(
+            [binary_path, "--version"], capture_output=True, text=True, timeout=5, check=True,
+        )
+        version = result.stdout.strip()
+        if version:
+            return version
+    except Exception:
+        pass
+    return os.environ.get("WHISPER_CPP_VERSION", "unknown")
+
+
 def engine_for_mode(mode: str) -> TranscriptionEngine:
     if mode == DIARIZE_MODE:
         return WhisperMlxEngine(
             model_path=os.environ["WHISPER_MLX_MODEL_PATH"],
-            engine_version=os.environ.get("WHISPERMLX_VERSION", "unknown"),
+            engine_version=_whispermlx_version(),
             hf_token=os.environ["HUGGINGFACE_TOKEN"],
         )
+    binary_path = os.environ.get("WHISPER_CLI_BINARY", "/opt/homebrew/bin/whisper-cli")
     return WhisperCppEngine(
-        binary_path=os.environ.get("WHISPER_CLI_BINARY", "/opt/homebrew/bin/whisper-cli"),
+        binary_path=binary_path,
         vad_model_path=os.environ["WHISPER_VAD_MODEL_PATH"],
         model_path=os.environ["WHISPER_ASR_MODEL_PATH"],
-        engine_version=os.environ.get("WHISPER_CPP_VERSION", "unknown"),
+        engine_version=_whisper_cpp_version(binary_path),
     )
 
 

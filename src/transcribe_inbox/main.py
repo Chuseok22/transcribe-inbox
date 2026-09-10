@@ -16,20 +16,26 @@ def run() -> None:
     ARCHIVE_ROOT.mkdir(parents=True, exist_ok=True)
     INBOX_ROOT.mkdir(parents=True, exist_ok=True)
 
-    conn = connect_with_backoff(os.environ["DATABASE_URL"])
+    dsn = os.environ["DATABASE_URL"]
+    # Two separate connections, not one shared: psycopg3 connections are one
+    # transaction at a time, so a rollback() fired by either thread (e.g. the
+    # watcher's register_job skip-branch) could abort uncommitted work the
+    # other thread hasn't committed yet if they shared a connection.
+    worker_conn = connect_with_backoff(dsn)
+    watcher_conn = connect_with_backoff(dsn)
     # Watcher starts first so its handler exists for reconciliation to seed
     # pending multitrack sessions into (Task 14) -- registering the same
     # already-stable file twice is a harmless idempotent no-op either way.
-    observer, handler = start_watching(conn, INBOX_ROOT)
-    run_startup_reconciliation(conn, INBOX_ROOT, ARCHIVE_ROOT, handler)
+    observer, handler = start_watching(watcher_conn, INBOX_ROOT)
+    run_startup_reconciliation(worker_conn, INBOX_ROOT, ARCHIVE_ROOT, handler)
 
     while True:
         handler.poll_pending_sessions()
-        job = claim_next_pending_job(conn)
+        job = claim_next_pending_job(worker_conn)
         if job is None:
             time.sleep(POLL_INTERVAL_SECONDS)
             continue
-        process_one_job(conn, job, STAGING_ROOT)
+        process_one_job(worker_conn, job, STAGING_ROOT)
 
 
 if __name__ == "__main__":
