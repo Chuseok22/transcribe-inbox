@@ -10,11 +10,11 @@ from transcribe_inbox.transcript.schema import TranscriptDocument
 def write_transcript_bundle(doc: TranscriptDocument, staging_dir: Path) -> None:
     staging_dir.mkdir(parents=True, exist_ok=True)
     (staging_dir / "transcript.json").write_text(
-        json.dumps(doc.to_dict(), ensure_ascii=False, indent=2)
+        json.dumps(doc.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    (staging_dir / "transcript.md").write_text(to_markdown(doc))
-    (staging_dir / "transcript.txt").write_text(to_plain_text(doc))
-    (staging_dir / "transcript.srt").write_text(to_srt(doc))
+    (staging_dir / "transcript.md").write_text(to_markdown(doc), encoding="utf-8")
+    (staging_dir / "transcript.txt").write_text(to_plain_text(doc), encoding="utf-8")
+    (staging_dir / "transcript.srt").write_text(to_srt(doc), encoding="utf-8")
 
 
 def publish_atomically(staging_dir: Path, final_dir: Path) -> None:
