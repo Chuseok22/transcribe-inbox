@@ -28,6 +28,15 @@ def test_speaker_change_always_starts_new_segment_even_with_no_pause():
     assert segments[1].speaker == "SPEAKER_01"
 
 
+def test_pause_exactly_at_max_threshold_merges_not_splits():
+    words = [
+        Word(text="첫문장", start=0.0, end=1.0, speaker="SPEAKER_00"),
+        Word(text="둘째문장", start=3.0, end=4.0, speaker="SPEAKER_00"),  # exactly 2.0s pause
+    ]
+    segments = speaker_aware_resegment(words)
+    assert len(segments) == 1
+
+
 def test_long_pause_with_same_speaker_starts_new_segment():
     words = [
         Word(text="첫문장", start=0.0, end=1.0, speaker="SPEAKER_00"),
