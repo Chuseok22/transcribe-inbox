@@ -21,8 +21,8 @@ def to_srt(doc: TranscriptDocument) -> str:
         blocks.append(
             f"{index}\n{_format_srt_timestamp(seg.start)} --> {_format_srt_timestamp(seg.end)}\n{prefix}{seg.text}\n"
         )
-    # SRT blocks must be separated by a blank line -- "\n\n".join, not "\n".join,
-    # or every block after the first fails to parse in most players.
+    # Each block above already ends in its own trailing "\n", so joining with a
+    # single "\n" inserts exactly the blank line SRT requires between blocks.
     return "\n".join(blocks)
 
 
