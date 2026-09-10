@@ -24,6 +24,8 @@
     <string>/Users/chuseok22/Library/Logs/transcribe-inbox.error.log</string>
     <key>EnvironmentVariables</key>
     <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>DATABASE_URL</key>
         <string>postgresql://localhost/transcribe_inbox</string>
         <key>WHISPER_CLI_BINARY</key>

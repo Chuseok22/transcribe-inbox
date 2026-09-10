@@ -1,13 +1,30 @@
 from __future__ import annotations
+import logging
 import os
+import wave
 from pathlib import Path
+
+import numpy as np
 
 from transcribe_inbox.engines.base import ProgressCallback, TranscriptionEngine, TranscriptionRequest
 from transcribe_inbox.preprocess.ffmpeg import wav_duration_seconds
 from transcribe_inbox.transcript.resegment import speaker_aware_resegment
-from transcribe_inbox.transcript.schema import SCHEMA_VERSION, TranscriptDocument, Word
+from transcribe_inbox.transcript.schema import SCHEMA_VERSION, Segment, TranscriptDocument, Word
 
 PIPELINE_VERSION = "0.1.0"
+
+logger = logging.getLogger(__name__)
+
+
+def _read_wav_as_float32(wav_path: Path) -> np.ndarray:
+    """Reads an already-normalized 16kHz mono 16-bit PCM WAV (normalize_to_wav
+    guarantees this format upstream in worker.py) into a float32 array in
+    [-1, 1]. Matches whispermlx's own `audio.load_audio` conversion exactly
+    (`np.frombuffer(pcm_s16le, np.int16).astype(np.float32) / 32768.0`) so
+    passing this array in place of a path produces sample-identical input."""
+    with wave.open(str(wav_path), "rb") as f:
+        raw = f.readframes(f.getnframes())
+    return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
 
 class WhisperMlxEngine(TranscriptionEngine):
@@ -42,35 +59,52 @@ class WhisperMlxEngine(TranscriptionEngine):
         def report(stage):
             return (lambda pct: progress_callback(pct, stage)) if progress_callback else None
 
+        # Read the audio once ourselves and pass the array (not a path
+        # string) to every whispermlx call below. whispermlx's own
+        # `audio.load_audio` shells out to a bare `ffmpeg` on PATH with no
+        # absolute path -- under launchd (no PATH set), that raises
+        # FileNotFoundError. Reading the already-normalized WAV here also
+        # avoids decoding the same file three separate times.
+        audio_array = _read_wav_as_float32(request.audio_path)
+
         # `device` here configures whispermlx's internal VAD torch model, not
         # MLX acceleration — ASR always runs on MLX regardless of this value,
         # and "mlx" is not a valid torch device string (verified against
         # KalebJS/whispermlx source).
         model = whispermlx.load_model(self._model_path, device="cpu")
         asr_result = model.transcribe(
-            str(request.audio_path), language=request.language, progress_callback=report("TRANSCRIBING"),
+            audio_array, language=request.language, progress_callback=report("TRANSCRIBING"),
         )
 
-        align_model, align_metadata = whispermlx.load_align_model(
-            language_code=asr_result["language"], device="mps",
-        )
-        aligned = whispermlx.align(
-            asr_result["segments"], align_model, align_metadata, str(request.audio_path),
-            device="mps", progress_callback=report("ALIGNING"),
-        )
-
-        diarize = DiarizationPipeline(token=self._hf_token, device="mps")
-        diarization_df = diarize(str(request.audio_path), progress_callback=report("DIARIZING"))
+        aligned = self._align_with_mps_fallback(whispermlx, asr_result, audio_array, report)
+        diarization_df = self._diarize_with_mps_fallback(DiarizationPipeline, audio_array, report)
         # DiarizationPipeline.__call__ returns a pandas.DataFrame directly —
         # there is no `.speaker_diarization` attribute to unwrap.
         result_with_speakers = whispermlx.assign_word_speakers(diarization_df, aligned)
 
-        words = [
-            Word(text=w["word"], start=w["start"], end=w["end"], speaker=w.get("speaker"))
-            for seg in result_with_speakers["segments"]
-            for w in seg.get("words", [])
-        ]
-        segments = speaker_aware_resegment(words)
+        words: list[Word] = []
+        segments: list[Segment] = []
+        for seg in result_with_speakers["segments"]:
+            seg_words = seg.get("words") or []
+            if seg_words:
+                segment_words = [
+                    Word(text=w["word"], start=w["start"], end=w["end"], speaker=w.get("speaker"))
+                    for w in seg_words
+                ]
+                words.extend(segment_words)
+                segments.extend(speaker_aware_resegment(segment_words))
+            else:
+                # whispermlx's own alignment fallback (no alignable
+                # characters, segment start past audio duration, or a failed
+                # backtrack -- see whispermlx/alignment.py) leaves `words`
+                # empty but keeps the segment-level start/end/text intact.
+                # `assign_word_speakers` still assigns a segment-level
+                # `speaker` in this case. Falling back to those fields keeps
+                # this stretch of the transcript instead of silently
+                # dropping it.
+                segments.append(Segment(
+                    start=seg["start"], end=seg["end"], text=seg["text"], speaker=seg.get("speaker"),
+                ))
 
         return TranscriptDocument(
             schema_version=SCHEMA_VERSION,
@@ -84,3 +118,31 @@ class WhisperMlxEngine(TranscriptionEngine):
             segments=segments,
             words=words,
         )
+
+    def _align_with_mps_fallback(self, whispermlx_module, asr_result, audio_array, report):
+        try:
+            align_model, align_metadata = whispermlx_module.load_align_model(
+                language_code=asr_result["language"], device="mps",
+            )
+            return whispermlx_module.align(
+                asr_result["segments"], align_model, align_metadata, audio_array,
+                device="mps", progress_callback=report("ALIGNING"),
+            )
+        except Exception:
+            logger.warning("whispermlx alignment failed on device=mps, falling back to cpu", exc_info=True)
+            align_model, align_metadata = whispermlx_module.load_align_model(
+                language_code=asr_result["language"], device="cpu",
+            )
+            return whispermlx_module.align(
+                asr_result["segments"], align_model, align_metadata, audio_array,
+                device="cpu", progress_callback=report("ALIGNING"),
+            )
+
+    def _diarize_with_mps_fallback(self, diarization_pipeline_cls, audio_array, report):
+        try:
+            diarize = diarization_pipeline_cls(token=self._hf_token, device="mps")
+            return diarize(audio_array, progress_callback=report("DIARIZING"))
+        except Exception:
+            logger.warning("whispermlx diarization failed on device=mps, falling back to cpu", exc_info=True)
+            diarize = diarization_pipeline_cls(token=self._hf_token, device="cpu")
+            return diarize(audio_array, progress_callback=report("DIARIZING"))
