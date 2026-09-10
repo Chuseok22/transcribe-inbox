@@ -64,7 +64,7 @@ def test_archive_source_mirrors_category_and_mode(tmp_path):
     assert not inbox_file.exists()
 
 
-def test_archive_source_replaces_existing_destination(tmp_path):
+def test_archive_source_disambiguates_on_existing_destination(tmp_path):
     inbox_file = tmp_path / "inbox" / "x" / "a.m4a"
     inbox_file.parent.mkdir(parents=True)
     inbox_file.write_bytes(b"new")
@@ -75,4 +75,11 @@ def test_archive_source_replaces_existing_destination(tmp_path):
 
     destination = archive_source(inbox_file, tmp_path / "archive", category="x", mode="asr")
 
+    # The previously archived original must be left untouched...
+    assert existing_dest.read_bytes() == b"old"
+    # ...and the new file archived elsewhere, discoverable via the return value.
+    assert destination != existing_dest
+    assert destination.parent == existing_dest.parent
+    assert destination.exists()
     assert destination.read_bytes() == b"new"
+    assert not inbox_file.exists()
