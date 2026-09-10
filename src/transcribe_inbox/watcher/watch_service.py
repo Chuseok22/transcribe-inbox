@@ -98,6 +98,19 @@ class InboxEventHandler(FileSystemEventHandler):
         # dispatch thread behind a redundant full wait+re-hash.
         self._in_flight: set[Path] = set()
         self._lock = threading.Lock()
+        # Separate from `_lock` above (which only ever protects the
+        # in-memory `_pending_sessions`/`_in_flight` bookkeeping): this one
+        # gives mutual exclusion over every use of `self._conn` that commits
+        # or rolls back. psycopg's own internal connection lock only
+        # serializes individual statements, not whole execute-then-commit
+        # sequences, so without a real mutex here one thread's rollback
+        # (fired by an unrelated exception) could land between another
+        # thread's execute() and its own subsequent commit() on this shared
+        # connection, discarding a row that thread already believed it
+        # successfully registered. Kept separate from `_lock` so a slow DB
+        # operation on one thread never blocks the other thread's unrelated
+        # in-memory bookkeeping (e.g. `add_pending_session`).
+        self._conn_lock = threading.Lock()
 
     def on_created(self, event) -> None:
         self._handle(Path(event.src_path))
@@ -134,10 +147,11 @@ class InboxEventHandler(FileSystemEventHandler):
                 # and must not leave the connection in a failed-transaction
                 # state for the caller (Task 15's main loop).
                 try:
-                    enqueue_stable_path(
-                        self._conn, self._inbox_root,
-                        category=pending.category, mode=MULTITRACK_MODE, job_path=session_path,
-                    )
+                    with self._conn_lock:
+                        enqueue_stable_path(
+                            self._conn, self._inbox_root,
+                            category=pending.category, mode=MULTITRACK_MODE, job_path=session_path,
+                        )
                 except Exception:
                     logger.exception("Error enqueuing pending multitrack session %s", session_path)
                     self._safe_rollback()
@@ -166,7 +180,8 @@ class InboxEventHandler(FileSystemEventHandler):
         # here may have broken it), rollback() itself can raise -- swallow
         # that too, since there's nothing left to roll back to.
         try:
-            self._conn.rollback()
+            with self._conn_lock:
+                self._conn.rollback()
         except Exception:
             logger.exception("Error rolling back connection after a previous error")
 
@@ -187,7 +202,8 @@ class InboxEventHandler(FileSystemEventHandler):
             self._in_flight.add(parsed.job_path)
         try:
             if wait_for_file_stable(parsed.job_path, stable_seconds=FILE_STABILIZATION_SECONDS):
-                enqueue_stable_path(self._conn, self._inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
+                with self._conn_lock:
+                    enqueue_stable_path(self._conn, self._inbox_root, category=parsed.category, mode=parsed.mode, job_path=parsed.job_path)
         finally:
             with self._lock:
                 self._in_flight.discard(parsed.job_path)
@@ -204,24 +220,25 @@ def run_startup_reconciliation(
 
     for job in find_completed_jobs_with_source_still_present(conn):
         source_path = Path(job.source_path)
-        current_hash = hash_session(source_path) if job.processing_mode == MULTITRACK_MODE else hash_file(source_path)
-        if current_hash != job.source_hash:
-            # Different content now sits at this path than when the job
-            # completed -- archiving it here would silently treat brand-new,
-            # never-transcribed content as this old job's leftover source.
-            # Leave it for the normal startup scan below to register as its
-            # own job.
-            logger.warning(
-                "Startup reconciliation: skipping archive for job %s -- "
-                "content at %s no longer matches the completed job's source_hash",
-                job.id, source_path,
-            )
-            continue
-        # A persistently-failing move here (permissions, a dangling path)
-        # must not escape and kill the daemon before it ever starts
-        # watching -- launchd would just restart into the same failure
-        # forever, permanently blocking the self-heal this loop exists for.
+        # A persistently-failing hash or move here (permissions, a dangling
+        # path, a file vanishing mid-check) must not escape and kill the
+        # daemon before it ever starts watching -- launchd would just restart
+        # into the same failure forever, permanently blocking the self-heal
+        # this loop exists for.
         try:
+            current_hash = hash_session(source_path) if job.processing_mode == MULTITRACK_MODE else hash_file(source_path)
+            if current_hash != job.source_hash:
+                # Different content now sits at this path than when the job
+                # completed -- archiving it here would silently treat
+                # brand-new, never-transcribed content as this old job's
+                # leftover source. Leave it for the normal startup scan below
+                # to register as its own job.
+                logger.warning(
+                    "Startup reconciliation: skipping archive for job %s -- "
+                    "content at %s no longer matches the completed job's source_hash",
+                    job.id, source_path,
+                )
+                continue
             archive_source(source_path, archive_root, job.category, job.processing_mode)
         except Exception:
             logger.exception("Startup reconciliation: failed to archive already-completed job %s", job.id)

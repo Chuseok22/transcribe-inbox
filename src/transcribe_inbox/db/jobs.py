@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,8 @@ from psycopg.types.json import Jsonb
 from transcribe_inbox.hashing import hash_file, hash_session
 
 MULTITRACK_MODE = "asr-multitrack"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -143,21 +146,35 @@ def reconcile_stale_processing(conn: psycopg.Connection) -> None:
         )
         rows = cur.fetchall()
         for job_id, source_path, source_hash, processing_mode in rows:
-            path = Path(source_path)
-            if not path.exists():
+            # Isolated per-row: a hashing failure for this one row
+            # (permissions, the file vanishing mid-check) must not abort
+            # reconciliation of the remaining stale rows.
+            try:
+                path = Path(source_path)
+                if not path.exists():
+                    cur.execute(
+                        "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_MISSING' WHERE id = %s",
+                        (job_id,),
+                    )
+                    continue
+                current_hash = hash_session(path) if processing_mode == MULTITRACK_MODE else hash_file(path)
+                if current_hash != source_hash:
+                    cur.execute(
+                        "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_CHANGED' WHERE id = %s",
+                        (job_id,),
+                    )
+                    continue
+                cur.execute("UPDATE transcription_job SET status = 'PENDING' WHERE id = %s", (job_id,))
+            except Exception:
+                # Can't verify the hash, so don't blindly requeue against
+                # possibly-different content -- mark it FAILED with a clear
+                # error code so it surfaces for investigation/explicit retry
+                # instead of being left stuck in PROCESSING forever.
+                logger.exception("Reconciliation failed for stale job %s", job_id)
                 cur.execute(
-                    "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_MISSING' WHERE id = %s",
+                    "UPDATE transcription_job SET status = 'FAILED', error_code = 'RECONCILIATION_ERROR' WHERE id = %s",
                     (job_id,),
                 )
-                continue
-            current_hash = hash_session(path) if processing_mode == MULTITRACK_MODE else hash_file(path)
-            if current_hash != source_hash:
-                cur.execute(
-                    "UPDATE transcription_job SET status = 'FAILED', error_code = 'SOURCE_CHANGED' WHERE id = %s",
-                    (job_id,),
-                )
-                continue
-            cur.execute("UPDATE transcription_job SET status = 'PENDING' WHERE id = %s", (job_id,))
     conn.commit()
 
 
