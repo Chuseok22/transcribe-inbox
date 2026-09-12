@@ -163,7 +163,7 @@ class MultiTrackFakeEngine(FakeEngine):
         #   i.e. the correct final order is the REVERSE of the tracks'
         #   list order / engine-call order, so a missing or broken sort
         #   would leave the segments in the wrong order.
-        "백지훈.m4a": (200.0, 205.0),
+        "김철수.m4a": (200.0, 205.0),
         "홍길동.m4a": (0.0, 5.0),
     }
 
@@ -182,14 +182,14 @@ class MultiTrackFakeEngine(FakeEngine):
 def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     session = tmp_path / "inbox" / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    track_a = session / "백지훈.m4a"
+    track_a = session / "김철수.m4a"
     track_b = session / "홍길동.m4a"
     track_a.write_bytes(b"a")
     track_b.write_bytes(b"b")
     job = Job(
         id="job-3", source_path=str(session), source_hash="hash-3", category="캡스톤", processing_mode="asr-multitrack",
         tracks=[
-            {"path": str(track_a), "speaker_label": "백지훈", "offset_seconds": 0.0},
+            {"path": str(track_a), "speaker_label": "김철수", "offset_seconds": 0.0},
             {"path": str(track_b), "speaker_label": "홍길동", "offset_seconds": 120.0},
         ],
     )
@@ -223,21 +223,21 @@ def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     assert published_json.exists()
     segments = json.loads(published_json.read_text())["segments"]
     speakers = {seg["speaker"] for seg in segments}
-    assert speakers == {"백지훈", "홍길동"}
+    assert speakers == {"김철수", "홍길동"}
 
     # Offset-shift: each track's segment must be shifted by its own
     # offset_seconds, not left at the raw engine-reported times.
     by_speaker = {seg["speaker"]: seg for seg in segments}
-    assert by_speaker["백지훈"]["start"] == 200.0  # offset 0.0 -> unchanged
-    assert by_speaker["백지훈"]["end"] == 205.0
+    assert by_speaker["김철수"]["start"] == 200.0  # offset 0.0 -> unchanged
+    assert by_speaker["김철수"]["end"] == 205.0
     assert by_speaker["홍길동"]["start"] == 120.0  # offset 120.0 -> 0.0 + 120.0
     assert by_speaker["홍길동"]["end"] == 125.0  # 5.0 + 120.0
 
     # Sort: after shifting, 홍길동's segment (120.0) starts before
-    # 백지훈's (200.0) -- the REVERSE of the tracks' list/engine-call
+    # 김철수's (200.0) -- the REVERSE of the tracks' list/engine-call
     # order -- so this only passes if the segments are actually sorted
     # by (post-shift) start time.
-    assert [seg["speaker"] for seg in segments] == ["홍길동", "백지훈"]
+    assert [seg["speaker"] for seg in segments] == ["홍길동", "김철수"]
 
 
 def test_process_one_job_keeps_completed_status_when_archive_fails(tmp_path, monkeypatch):

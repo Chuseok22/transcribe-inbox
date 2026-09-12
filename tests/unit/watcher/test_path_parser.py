@@ -24,7 +24,7 @@ def test_explicit_diarize_mode():
     assert result.job_path == path
 
 def test_asr_multitrack_job_path_is_the_session_folder_not_the_track_file():
-    track = INBOX / "캡스톤" / "asr-multitrack" / "2026-09-08" / "백지훈.m4a"
+    track = INBOX / "캡스톤" / "asr-multitrack" / "2026-09-08" / "김철수.m4a"
     result = parse_inbox_path(INBOX, track)
     assert result.category == "캡스톤"
     assert result.mode == "asr-multitrack"

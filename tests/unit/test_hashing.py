@@ -21,7 +21,7 @@ def test_hash_file_changes_with_content(tmp_path):
 def test_hash_session_ignores_dotfiles_and_order(tmp_path):
     session = tmp_path / "2026-09-08"
     session.mkdir()
-    (session / "백지훈.m4a").write_bytes(b"a")
+    (session / "김철수.m4a").write_bytes(b"a")
     (session / "홍길동.m4a").write_bytes(b"b")
     (session / ".DS_Store").write_bytes(b"junk")
 
@@ -30,14 +30,14 @@ def test_hash_session_ignores_dotfiles_and_order(tmp_path):
     other = tmp_path / "2026-09-08-reordered"
     other.mkdir()
     (other / "홍길동.m4a").write_bytes(b"b")
-    (other / "백지훈.m4a").write_bytes(b"a")
+    (other / "김철수.m4a").write_bytes(b"a")
 
     assert hash_session(session) == hash_session(other)
 
 def test_hash_session_changes_when_track_added(tmp_path):
     session = tmp_path / "s"
     session.mkdir()
-    (session / "백지훈.m4a").write_bytes(b"a")
+    (session / "김철수.m4a").write_bytes(b"a")
     before = hash_session(session)
     (session / "김철수.m4a").write_bytes(b"c")
     assert hash_session(session) != before

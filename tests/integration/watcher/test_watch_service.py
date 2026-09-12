@@ -39,7 +39,7 @@ def test_enqueue_stable_path_registers_multitrack_session_once(tmp_path, conn):
     inbox = tmp_path / "inbox"
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    (session / "백지훈.m4a").write_bytes(b"a")
+    (session / "김철수.m4a").write_bytes(b"a")
     (session / "홍길동.m4a").write_bytes(b"b")
 
     enqueue_stable_path(conn, inbox, category="캡스톤", mode="asr-multitrack", job_path=session)
@@ -49,14 +49,14 @@ def test_enqueue_stable_path_registers_multitrack_session_once(tmp_path, conn):
     ).fetchall()
     assert len(rows) == 1
     tracks = rows[0][0]
-    assert {t["path"] for t in tracks} == {str(session / "백지훈.m4a"), str(session / "홍길동.m4a")}
+    assert {t["path"] for t in tracks} == {str(session / "김철수.m4a"), str(session / "홍길동.m4a")}
 
 
 def test_multitrack_session_registers_only_once_polling_shows_quiescence(tmp_path, conn):
     inbox = tmp_path / "inbox"
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    track = session / "백지훈.m4a"
+    track = session / "김철수.m4a"
     track.write_bytes(b"a")
 
     handler = InboxEventHandler(conn, inbox)
@@ -87,7 +87,7 @@ def test_multitrack_session_uses_event_observation_time_not_stale_file_mtime(tmp
     inbox = tmp_path / "inbox"
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    track = session / "백지훈.m4a"
+    track = session / "김철수.m4a"
     track.write_bytes(b"a")
     stale_mtime = time.time() - 10_000  # simulates an mtime preserved from wherever the file came from
     os.utime(track, (stale_mtime, stale_mtime))
@@ -111,7 +111,7 @@ def test_poll_pending_sessions_uses_stored_category_not_path_derived_one(tmp_pat
     inbox = tmp_path / "inbox"
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    (session / "백지훈.m4a").write_bytes(b"a")
+    (session / "김철수.m4a").write_bytes(b"a")
 
     handler = InboxEventHandler(conn, inbox)
     handler.add_pending_session(session, "다른카테고리", now_fn=lambda: 1000.0)
@@ -166,7 +166,7 @@ def test_poll_pending_sessions_preserves_entry_refreshed_mid_enqueue(tmp_path, c
     inbox = tmp_path / "inbox"
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    (session / "백지훈.m4a").write_bytes(b"a")
+    (session / "김철수.m4a").write_bytes(b"a")
 
     handler = InboxEventHandler(conn, inbox)
     handler.add_pending_session(session, "캡스톤", now_fn=lambda: 1000.0)
@@ -362,7 +362,7 @@ def test_run_startup_reconciliation_seeds_pending_session_for_not_yet_quiescent_
     archive.mkdir()
     session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
     session.mkdir(parents=True)
-    (session / "백지훈.m4a").write_bytes(b"a")  # freshly written -> not quiescent
+    (session / "김철수.m4a").write_bytes(b"a")  # freshly written -> not quiescent
 
     handler = InboxEventHandler(conn, inbox)
     run_startup_reconciliation(conn, inbox, archive, handler)
