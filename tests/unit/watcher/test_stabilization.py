@@ -46,6 +46,19 @@ def test_growing_then_stable_file_waits_from_last_growth(tmp_path):
     # early -- exactly the bug this test exists to catch.
     assert call_count["n"] == 6, f"expected exactly 6 size samples, got {call_count['n']}"
 
+def test_file_deleted_between_exists_check_and_stat_returns_false(tmp_path):
+    f = tmp_path / "a.m4a"
+    f.write_bytes(b"x")
+
+    def vanishing_size_fn(path):
+        raise FileNotFoundError("gone")
+
+    result = wait_for_file_stable(
+        f, stable_seconds=5.0, poll_interval=1.0,
+        now_fn=time.monotonic, sleep_fn=lambda _: None, size_fn=vanishing_size_fn,
+    )
+    assert result is False
+
 def test_folder_quiescent_false_when_recent_mtime(tmp_path):
     folder = tmp_path / "session"
     folder.mkdir()

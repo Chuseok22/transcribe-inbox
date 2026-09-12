@@ -23,7 +23,13 @@ def wait_for_file_stable(
     while True:
         if not path.exists():
             return False
-        size = size_fn(path)
+        try:
+            size = size_fn(path)
+        except FileNotFoundError:
+            # The file vanished in the gap between the exists() check above
+            # and this stat -- same documented "disappeared mid-wait" case,
+            # just a narrower race window.
+            return False
         current = now_fn()
         if size != last_size:
             last_size = size
