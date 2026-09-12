@@ -1,5 +1,8 @@
 # transcribe-inbox
 
+<!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
+## Latest Version : v0.0.2 (2026-09-12)
+
 A local-only macOS background daemon that watches a folder for dropped-in
 recordings (lecture/meeting audio **or video**), transcribes them on Apple
 Silicon GPU using a hybrid whisper.cpp/whispermlx engine, and publishes the
