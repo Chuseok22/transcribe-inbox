@@ -1,13 +1,31 @@
 {
   "metadata": {
-    "lastUpdated": "2026-09-12T15:06:49Z",
-    "currentVersion": "0.1.0",
+    "lastUpdated": "2026-09-12T15:33:49Z",
+    "currentVersion": "0.1.1",
     "projectTypes": [
       "basic"
     ],
-    "totalReleases": 2
+    "totalReleases": 3
   },
   "releases": [
+    {
+      "version": "0.1.1",
+      "project_types": [
+        "basic"
+      ],
+      "date": "2026-09-12",
+      "pr_number": null,
+      "raw_summary": "## [0.1.1]\n\n### 📝 문서\n- translate README to Korean",
+      "parsed_changes": {
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "translate README to Korean"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.1.0",
       "project_types": [
