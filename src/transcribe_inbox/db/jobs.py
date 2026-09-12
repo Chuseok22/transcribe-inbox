@@ -36,9 +36,10 @@ class Job:
 
 
 def register_job(conn: psycopg.Connection, job: NewJob) -> uuid.UUID | None:
-    """Returns the job id for a newly-created or FAILED->PENDING-reactivated
-    job; returns None if a PENDING/PROCESSING/COMPLETED job with this hash
-    already exists (idempotent skip, spec §8).
+    """Returns the job id for a newly-created job, a FAILED->PENDING
+    reactivation, or a PENDING job whose path was refreshed (see below);
+    returns None if a PENDING job at the *same* path, or a PROCESSING/
+    COMPLETED job, with this hash already exists (idempotent skip, spec §8).
 
     A single atomic `INSERT ... ON CONFLICT ... DO UPDATE ... WHERE` statement
     replaces what used to be a SELECT-then-branch (check-then-act) sequence --
@@ -46,7 +47,16 @@ def register_job(conn: psycopg.Connection, job: NewJob) -> uuid.UUID | None:
     concurrent connections/threads registering the same source_hash at once.
     Postgres resolves the INSERT-vs-UPDATE race itself, and having nothing
     else interleaved between this statement's execute and its own commit
-    means no other connection's rollback can land inside this transaction."""
+    means no other connection's rollback can land inside this transaction.
+
+    The second WHERE branch (PENDING + a different source_path) refreshes an
+    unclaimed job's path/category in place instead of leaving it stuck on a
+    vanished path -- without it, renaming/moving a still-queued file left the
+    old row pointing at the old path forever: the worker would fail it as
+    missing, the startup scan would skip the new path (hash now FAILED), and
+    `retry` would refuse it (stored path doesn't exist). retry_count/error
+    fields are only touched on the FAILED branch -- a plain path refresh is
+    not a retry."""
     new_id = uuid.uuid4()
     with conn.cursor() as cur:
         cur.execute(
@@ -54,11 +64,18 @@ def register_job(conn: psycopg.Connection, job: NewJob) -> uuid.UUID | None:
             INSERT INTO transcription_job (id, source_path, source_hash, category, processing_mode, tracks, status)
             VALUES (%s, %s, %s, %s, %s, %s, 'PENDING')
             ON CONFLICT (source_hash) DO UPDATE
-              SET status = 'PENDING', retry_count = transcription_job.retry_count + 1,
-                  error_code = NULL, error_message = NULL,
+              SET status = 'PENDING',
+                  retry_count = CASE WHEN transcription_job.status = 'FAILED'
+                                     THEN transcription_job.retry_count + 1
+                                     ELSE transcription_job.retry_count END,
+                  error_code = CASE WHEN transcription_job.status = 'FAILED'
+                                    THEN NULL ELSE transcription_job.error_code END,
+                  error_message = CASE WHEN transcription_job.status = 'FAILED'
+                                       THEN NULL ELSE transcription_job.error_message END,
                   source_path = EXCLUDED.source_path, category = EXCLUDED.category,
                   processing_mode = EXCLUDED.processing_mode, tracks = EXCLUDED.tracks
               WHERE transcription_job.status = 'FAILED'
+                 OR (transcription_job.status = 'PENDING' AND transcription_job.source_path <> EXCLUDED.source_path)
             RETURNING id
             """,
             (
@@ -198,8 +215,13 @@ def reconcile_stale_processing(conn: psycopg.Connection) -> None:
                     # Even the recovery write failed -- log and move on to
                     # the next row rather than let this handler become a new
                     # place an exception can escape reconcile_stale_processing
-                    # from.
+                    # from. If that failure was a DB error (not the earlier
+                    # rollback re-guarding a pure-Python one), Postgres has
+                    # left this transaction aborted -- roll back so the next
+                    # row's statements, and any later caller on this shared
+                    # connection, don't raise InFailedSqlTransaction.
                     logger.exception("Failed to record RECONCILIATION_ERROR for stale job %s", job_id)
+                    conn.rollback()
 
 
 def find_status_by_hash(conn: psycopg.Connection, source_hash: str) -> str | None:

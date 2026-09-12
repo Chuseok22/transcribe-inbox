@@ -57,6 +57,26 @@ def test_register_job_reactivates_a_failed_job(conn):
     assert row[1] == 1
 
 
+def test_register_job_refreshes_path_of_an_unclaimed_pending_job_on_move(conn):
+    """A file renamed/moved while its job is still PENDING (unclaimed) must
+    have its stored path refreshed to the new location -- otherwise the old
+    path lingers forever (worker fails it as missing, the startup scan skips
+    the new path since the hash is now FAILED, and `retry` refuses it too)."""
+    job_id = register_job(conn, NewJob(
+        source_path="/inbox/old/2주차.m4a", source_hash="hash-moved", category="강의", processing_mode="asr",
+    ))
+
+    moved_id = register_job(conn, NewJob(
+        source_path="/inbox/new/2주차.m4a", source_hash="hash-moved", category="강의", processing_mode="asr",
+    ))
+
+    assert moved_id == job_id
+    row = conn.execute(
+        "SELECT source_path, status, retry_count, error_code FROM transcription_job WHERE id = %s", (job_id,)
+    ).fetchone()
+    assert row == ("/inbox/new/2주차.m4a", "PENDING", 0, None)
+
+
 def test_claim_next_pending_job_moves_it_to_processing(conn):
     job_id = register_job(conn, NewJob(
         source_path="/inbox/x.m4a", source_hash="hash-d", category="미분류", processing_mode="asr",
@@ -204,6 +224,64 @@ def test_reconcile_stale_processing_survives_an_aborted_transaction(conn, tmp_pa
         "SELECT status, error_code FROM transcription_job WHERE id = %s", (job_id,)
     ).fetchone()
     assert row == ("FAILED", "RECONCILIATION_ERROR")
+
+
+def test_reconcile_stale_processing_rolls_back_when_the_recovery_write_itself_fails(conn, tmp_path, monkeypatch):
+    """If the *recovery* UPDATE (the one that records RECONCILIATION_ERROR)
+    itself fails with a genuine Postgres error, the transaction is left
+    aborted -- without a rollback in that innermost except, every later
+    statement on this shared connection (the next row in this same loop, or
+    any later caller) would raise InFailedSqlTransaction forever."""
+    failing_source = tmp_path / "failing.m4a"
+    failing_source.write_bytes(b"x")
+    failing_id = register_job(conn, NewJob(
+        source_path=str(failing_source), source_hash=hash_file(failing_source),
+        category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+
+    ok_source = tmp_path / "ok.m4a"
+    ok_source.write_bytes(b"y")
+    ok_id = register_job(conn, NewJob(
+        source_path=str(ok_source), source_hash=hash_file(ok_source),
+        category="미분류", processing_mode="asr",
+    ))
+    claim_next_pending_job(conn)  # -> PROCESSING
+
+    real_hash_file = hash_file
+    real_execute = psycopg.Cursor.execute
+
+    def flaky_hash_file(path):
+        # Trips the outer except for failing_source only, driving execution
+        # into the recovery-write branch.
+        if str(path) == str(failing_source):
+            raise OSError("permission denied")
+        return real_hash_file(path)
+
+    def flaky_execute(self, query, params=None, **kwargs):
+        # The recovery UPDATE itself (RECONCILIATION_ERROR) fails with a
+        # genuine Postgres-level error, leaving the transaction aborted.
+        if isinstance(query, str) and "RECONCILIATION_ERROR" in query:
+            return real_execute(self, "SELECT * FROM this_table_does_not_exist_xyz", None, **kwargs)
+        return real_execute(self, query, params, **kwargs)
+
+    monkeypatch.setattr("transcribe_inbox.db.jobs.hash_file", flaky_hash_file)
+    monkeypatch.setattr(psycopg.Cursor, "execute", flaky_execute)
+
+    reconcile_stale_processing(conn)  # must not raise, must not poison the connection for the next row
+
+    monkeypatch.undo()  # restore real hash_file/execute before verifying via the same conn
+
+    failing_row = conn.execute(
+        "SELECT status FROM transcription_job WHERE id = %s", (failing_id,)
+    ).fetchone()
+    # The recovery write itself failed, so this row is left as it was
+    # (PROCESSING) rather than silently marked anything -- but the important
+    # assertion is that the connection is still usable afterward.
+    assert failing_row[0] == "PROCESSING"
+
+    ok_row = conn.execute("SELECT status FROM transcription_job WHERE id = %s", (ok_id,)).fetchone()
+    assert ok_row[0] == "PENDING"
 
 
 def test_find_completed_jobs_with_source_still_present(conn, tmp_path):
