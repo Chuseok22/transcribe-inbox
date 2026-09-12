@@ -141,6 +141,18 @@ class InboxEventHandler(FileSystemEventHandler):
                     self._pending_sessions.pop(session_path, None)
                 continue
             if now_fn() - pending.last_event_at >= FOLDER_QUIESCENCE_SECONDS:
+                with self._lock:
+                    # A track can arrive (refreshing this entry) in the gap
+                    # between the `candidates` snapshot at the top of this
+                    # method and reaching this point -- re-check right before
+                    # the (slow, since it hashes every file) hash+register
+                    # call below, not just after it (see the pop-guard at the
+                    # end of this branch), so a session that just gained a
+                    # new track is never hashed/registered with an
+                    # incomplete/stale track list. Skip; a later poll will
+                    # re-evaluate the refreshed entry.
+                    if self._pending_sessions.get(session_path) != pending:
+                        continue
                 # Isolated per-candidate: a vanished track, a hashing error,
                 # or a DB error registering this one session must not stop
                 # the remaining candidates in this poll from being processed,
@@ -186,7 +198,10 @@ class InboxEventHandler(FileSystemEventHandler):
             logger.exception("Error rolling back connection after a previous error")
 
     def _handle_unsafe(self, path: Path) -> None:
-        if path.is_dir() or is_hidden_file(path):
+        if is_hidden_file(path):
+            return
+        if path.is_dir():
+            self._handle_moved_directory(path)
             return
         parsed = parse_inbox_path(self._inbox_root, path)
         if parsed is None:
@@ -207,6 +222,22 @@ class InboxEventHandler(FileSystemEventHandler):
         finally:
             with self._lock:
                 self._in_flight.discard(parsed.job_path)
+
+    def _handle_moved_directory(self, path: Path) -> None:
+        """A moved/renamed directory only fires a single on_moved event for
+        the destination directory itself -- no per-file event follows, so an
+        asr-multitrack session folder moved (or renamed) as a whole would
+        otherwise never be registered until the next daemon restart's
+        startup scan. Resolve it via one representative file inside it and
+        seed it into `_pending_sessions` exactly like a live per-file event
+        would (review finding)."""
+        representative_files = sorted(p for p in path.rglob("*") if p.is_file() and not is_hidden_file(p))
+        if not representative_files:
+            return
+        parsed = parse_inbox_path(self._inbox_root, representative_files[0])
+        if parsed is None or parsed.mode != MULTITRACK_MODE:
+            return
+        self.add_pending_session(parsed.job_path, parsed.category)
 
 
 def run_startup_reconciliation(

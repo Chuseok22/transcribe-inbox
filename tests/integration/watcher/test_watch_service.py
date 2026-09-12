@@ -190,6 +190,39 @@ def test_poll_pending_sessions_preserves_entry_refreshed_mid_enqueue(tmp_path, c
     assert handler._pending_sessions[session].last_event_at == 2000.0
 
 
+def test_poll_pending_sessions_skips_a_candidate_refreshed_after_the_snapshot(tmp_path, conn):
+    """A track can arrive (refreshing the pending entry) in the gap between
+    the `candidates` snapshot at the top of poll_pending_sessions and this
+    specific candidate's turn in the loop. Without re-checking right before
+    the (slow, since it hashes every file) hash+register call, the session
+    would be hashed/registered with a stale/incomplete track list -- a
+    subtly different failure than the entry merely being dropped afterward
+    (already covered by the mid-enqueue-refresh test above), since here the
+    bad registration happens before any pop-guard even runs."""
+    inbox = tmp_path / "inbox"
+    session = inbox / "캡스톤" / "asr-multitrack" / "2026-09-08"
+    session.mkdir(parents=True)
+    (session / "김철수.m4a").write_bytes(b"a")
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.add_pending_session(session, "캡스톤", now_fn=lambda: 1000.0)
+
+    def now_fn_that_refreshes_mid_poll():
+        # First (and only, for this single candidate) call: the top-level
+        # quiescence check. Its side effect simulates a new track arriving
+        # concurrently, exactly like a live watchdog event would, between
+        # the snapshot taken at the top of poll_pending_sessions and this
+        # candidate's processing.
+        handler.add_pending_session(session, "캡스톤", now_fn=lambda: 5000.0)
+        return 1000.0 + 120.0  # satisfies quiescence for the snapshot's own timestamp
+
+    handler.poll_pending_sessions(now_fn=now_fn_that_refreshes_mid_poll)
+
+    assert conn.execute("SELECT count(*) FROM transcription_job").fetchone()[0] == 0
+    assert session in handler._pending_sessions
+    assert handler._pending_sessions[session].last_event_at == 5000.0
+
+
 def test_handle_swallows_rollback_failure_too(tmp_path, conn, monkeypatch):
     """If rollback() itself raises (e.g. the connection was already broken
     by the same error that made _handle_unsafe raise), that must not escape
@@ -212,6 +245,41 @@ def test_handle_swallows_rollback_failure_too(tmp_path, conn, monkeypatch):
     monkeypatch.setattr(conn, "rollback", broken_rollback)
 
     handler.on_created(SimpleNamespace(src_path=str(audio)))  # must not raise
+
+
+def test_on_moved_registers_a_relocated_multitrack_session_directory(tmp_path, conn):
+    """watchdog fires a single `moved` event carrying the *directory's* own
+    dest_path when a whole asr-multitrack session folder is renamed/moved --
+    no per-file event follows. Without resolving this via a representative
+    file inside it, the session would never be registered until the next
+    daemon restart's startup scan (review finding)."""
+    inbox = tmp_path / "inbox"
+    old_session = inbox / "캡스톤" / "asr-multitrack" / "old-name"
+    old_session.mkdir(parents=True)
+    (old_session / "김철수.m4a").write_bytes(b"a")
+    new_session = inbox / "캡스톤" / "asr-multitrack" / "new-name"
+    old_session.rename(new_session)
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.on_moved(SimpleNamespace(dest_path=str(new_session)))
+
+    assert new_session in handler._pending_sessions
+    assert handler._pending_sessions[new_session].category == "캡스톤"
+
+
+def test_on_moved_ignores_a_moved_non_multitrack_directory(tmp_path, conn):
+    """A moved directory that isn't an asr-multitrack session (e.g. an
+    unrelated subfolder a user drops into the inbox) must not be registered
+    as a pending session."""
+    inbox = tmp_path / "inbox"
+    unrelated = inbox / "컴퓨터네트워크" / "실습자료"
+    unrelated.mkdir(parents=True)
+    (unrelated / "notes.txt").write_bytes(b"x")
+
+    handler = InboxEventHandler(conn, inbox)
+    handler.on_moved(SimpleNamespace(dest_path=str(unrelated)))
+
+    assert handler._pending_sessions == {}
 
 
 def test_on_moved_handles_a_file_relocated_within_inbox(tmp_path, conn):
