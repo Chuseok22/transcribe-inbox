@@ -20,3 +20,7 @@ build/
 htmlcov/
 tests/fixtures/*.wav
 tests/fixtures/*.meta.json
+/.blog-drafts
+/.superpowers/
+launchd/*.plist
+.env.*
