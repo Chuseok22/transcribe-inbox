@@ -40,6 +40,24 @@ def test_normalize_to_wav_raises_on_ffmpeg_failure(tmp_path):
     except RuntimeError:
         pass
 
+def test_normalize_to_wav_cleans_up_temp_wav_when_run_fn_raises(tmp_path):
+    source = tmp_path / "input.m4a"
+    source.write_bytes(b"x")
+    captured_output_path = {}
+
+    def raising_run(args, **kwargs):
+        captured_output_path["path"] = Path(args[-1])
+        raise FileNotFoundError("ffmpeg binary not found")
+
+    try:
+        normalize_to_wav(source, run_fn=raising_run)
+        assert False, "expected FileNotFoundError to propagate"
+    except FileNotFoundError:
+        pass
+
+    assert not captured_output_path["path"].exists()
+
+
 def test_wav_duration_seconds_reads_real_header_duration(tmp_path):
     wav_path = tmp_path / "a.wav"
     with wave.open(str(wav_path), "wb") as f:

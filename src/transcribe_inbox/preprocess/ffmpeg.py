@@ -27,11 +27,20 @@ def normalize_to_wav(
         "-ac", "1",
         str(output_path),
     ]
-    result = run_fn(args, capture_output=True)
-    if result.returncode != 0:
-        output_path.unlink(missing_ok=True)
-        raise RuntimeError(f"ffmpeg failed for {source_path} (exit {result.returncode})")
-    return output_path
+    succeeded = False
+    try:
+        result = run_fn(args, capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed for {source_path} (exit {result.returncode})")
+        succeeded = True
+        return output_path
+    finally:
+        # run_fn itself can raise (FileNotFoundError if ffmpeg's binary is
+        # missing, OSError for other exec failures) before returncode is
+        # ever checked -- without this finally, the pre-created temp WAV
+        # would leak on that path.
+        if not succeeded:
+            output_path.unlink(missing_ok=True)
 
 
 def wav_duration_seconds(wav_path: Path) -> float:
