@@ -32,10 +32,19 @@ def retry(conn: psycopg.Connection, job_id: str) -> None:
     if not Path(source_path).exists():
         print(f"Source file no longer exists: {source_path}", file=sys.stderr)
         sys.exit(1)
-    conn.execute(
-        "UPDATE transcription_job SET status = 'PENDING', retry_count = retry_count + 1, error_code = NULL, error_message = NULL WHERE id = %s",
+    # Re-check status in the same UPDATE (not just the SELECT above) so two
+    # concurrent `retry` runs, or a `retry` racing the daemon claiming this
+    # job, can't both flip it PENDING -- a zero-row result means the status
+    # already moved on since the SELECT above.
+    updated = conn.execute(
+        "UPDATE transcription_job SET status = 'PENDING', retry_count = retry_count + 1, "
+        "error_code = NULL, error_message = NULL WHERE id = %s AND status = 'FAILED' RETURNING id",
         (job_id,),
-    )
+    ).fetchone()
+    if updated is None:
+        conn.rollback()
+        print(f"Job {job_id} is no longer FAILED", file=sys.stderr)
+        sys.exit(1)
     conn.commit()
     print(f"Job {job_id} reset to PENDING")
 
