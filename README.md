@@ -1,7 +1,7 @@
 # transcribe-inbox
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v0.1.1 (2026-09-12)
+## Latest Version : v0.1.2 (2026-09-12)
 
 특정 폴더를 감시하다가 새로 들어온 녹음 파일(강의/회의 오디오 **또는 비디오**)을
 자동으로 전사(transcription)해서 Obsidian vault에 발행해주는, macOS 전용 로컬
