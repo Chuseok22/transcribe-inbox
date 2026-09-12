@@ -69,6 +69,48 @@ def test_transcribe_parses_offsets_into_segments(tmp_path, monkeypatch):
     assert doc.audio_duration_seconds == 20.0
 
 
+def test_transcribe_tolerates_invalid_utf8_in_whisper_cli_own_json_output(tmp_path, monkeypatch):
+    """whisper.cpp occasionally splits a single multi-byte CJK/Hangul
+    character's tokens across two output segments, leaving its own -oj JSON
+    file with an invalid UTF-8 byte sequence (upstream bug,
+    ggml-org/whisper.cpp#1798) -- reproduced here by corrupting one
+    continuation byte inside a real 3-byte Hangul character. A strict decode
+    would fail the entire transcription over one broken character; the
+    engine must decode leniently and keep everything else intact instead."""
+    good_json_bytes = json.dumps(FAKE_WHISPER_JSON, ensure_ascii=False).encode("utf-8")
+    marker = "첫".encode("utf-8")  # a real 3-byte Hangul character, present in FAKE_WHISPER_JSON's text
+    assert len(marker) == 3
+    corrupt_char = bytes([marker[0], marker[1], 0x20])  # valid lead byte, invalid final continuation byte
+    corrupted_json_bytes = good_json_bytes.replace(marker, corrupt_char, 1)
+
+    def fake_popen(args, stdout, stderr):
+        of_index = args.index("-of")
+        json_path = Path(args[of_index + 1]).with_suffix(".json")
+        json_path.write_bytes(corrupted_json_bytes)
+        return FakeProcess(returncode=0)
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    engine = WhisperCppEngine(
+        binary_path="/opt/homebrew/bin/whisper-cli",
+        vad_model_path="/models/ggml-silero-v6.2.0.bin",
+        model_path="/models/ggml-large-v3.bin",
+        engine_version="1.0.0",
+    )
+    audio_path = tmp_path / "normalized.wav"
+    _write_fake_wav(audio_path, duration_seconds=20.0)
+    request = TranscriptionRequest(
+        audio_path=audio_path, language="ko", alignment_enabled=False,
+        diarization_enabled=False, source_filename="2주차.m4a",
+    )
+
+    doc = engine.transcribe(request)  # must not raise UnicodeDecodeError
+
+    assert len(doc.segments) == 2  # both segments still parsed, not just the undamaged one
+    assert "�" in doc.segments[0].text  # the broken character was replaced, not silently dropped
+    assert doc.segments[1].text == "두 번째 문장입니다."  # the untouched segment is fully intact
+
+
 def test_transcribe_raises_on_nonzero_exit(tmp_path, monkeypatch):
     def fake_popen(args, stdout, stderr):
         return FakeProcess(returncode=1, stderr=b"model not found")

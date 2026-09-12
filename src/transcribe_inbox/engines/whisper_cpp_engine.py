@@ -65,7 +65,15 @@ class WhisperCppEngine(TranscriptionEngine):
                     f"whisper-cli exited {process.returncode}: {stderr.decode(errors='replace')}"
                 )
 
-            raw = json.loads(output_prefix.with_suffix(".json").read_text())
+            # whisper.cpp's own JSON writer occasionally splits a single
+            # multi-byte CJK/Hangul character's tokens across two segments,
+            # producing invalid UTF-8 in its own output (upstream bug --
+            # ggml-org/whisper.cpp#1798). read_text()'s strict decode turns
+            # that one bad character into a hard failure for the whole
+            # transcription; decoding leniently instead just swaps the
+            # broken character for U+FFFD and keeps everything else intact.
+            raw_bytes = output_prefix.with_suffix(".json").read_bytes()
+            raw = json.loads(raw_bytes.decode("utf-8", errors="replace"))
 
         return self._to_transcript_document(raw, request)
 
