@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chuseok22.transcribe-inbox</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOUR_USERNAME/.local/bin/uv</string>
+        <string>run</string>
+        <string>--project</string>
+        <string>/Users/YOUR_USERNAME/Workspace/tools/transcribe-inbox</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>transcribe_inbox.main</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/transcribe-inbox.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/Library/Logs/transcribe-inbox.error.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/YOUR_USERNAME/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>DATABASE_URL</key>
+        <string>postgresql://localhost/transcribe_inbox</string>
+        <key>WHISPER_CLI_BINARY</key>
+        <string>/opt/homebrew/bin/whisper-cli</string>
+        <key>WHISPER_VAD_MODEL_PATH</key>
+        <string>/Users/YOUR_USERNAME/Transcribe/model/ggml-silero-v6.2.0.bin</string>
+        <key>WHISPER_ASR_MODEL_PATH</key>
+        <string>/Users/YOUR_USERNAME/Transcribe/model/ggml-large-v3.bin</string>
+        <key>WHISPER_MLX_MODEL_PATH</key>
+        <string>mlx-community/whisper-large-v3-mlx</string>
+        <key>HUGGINGFACE_TOKEN</key>
+        <string>REPLACE_ME</string>
+    </dict>
+</dict>
+</plist>
