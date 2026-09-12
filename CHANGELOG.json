@@ -1,13 +1,97 @@
 {
   "metadata": {
-    "lastUpdated": "2026-09-10T09:06:29Z",
-    "currentVersion": "0.0.2",
+    "lastUpdated": "2026-09-12T15:06:49Z",
+    "currentVersion": "0.1.0",
     "projectTypes": [
       "basic"
     ],
-    "totalReleases": 1
+    "totalReleases": 2
   },
   "releases": [
+    {
+      "version": "0.1.0",
+      "project_types": [
+        "basic"
+      ],
+      "date": "2026-09-12",
+      "pr_number": null,
+      "raw_summary": "## [0.1.0]\n\n### ✨ 기능\n- worker main loop with asr-multitrack support and job monitoring, retry CLI, launchd entrypoint\n- watchdog wiring and startup reconciliation\n- footprint/system metrics observation, background job monitor, notifications\n- atomic transcript publish and source archiving\n- job repository with idempotency, claim, and reconciliation queries\n- job orchestration schema and backoff connection\n- whispermlx engine adapter for mixed-speaker meetings\n- whisper.cpp engine adapter\n- timeline-preserving ffmpeg normalization\n- markdown/txt/srt transcript formatters\n- speaker-aware re-segmentation for mixed-speaker meetings\n- canonical transcript schema and engine adapter interface\n- file and folder stabilization checks\n- source hashing for single files and multitrack sessions\n- scaffold project and inbox path parsing\n\n### 🐛 수정\n- register moved multitrack sessions, revalidate before enqueue\n- make retry's status transition atomic\n- treat file vanishing mid-stat as unstable, not a crash\n- clean up temp wav when ffmpeg invocation raises\n- refresh moved job paths, roll back failed reconciliation\n- guard reconciliation's recovery write against an aborted transaction\n- close reconciliation crash-guard and shared-connection races\n- build whispermlx transcript from one chronological word list\n- atomic upsert for register_job; verify content hash before reuse\n- archive_source never deletes/overwrites an existing destination\n- pass numpy arrays (not paths) to whispermlx, add mps->cpu fallback\n- cross-cutting review fixes from final whole-branch review\n- strengthen skip guards in timeline regression tests to check model file existence\n- notify before archiving on job completion, strengthen multitrack offset/sort test coverage\n- category derivation, exception isolation, and race in watch service pending-session polling\n- guard JobMonitor's swap-memory sampling against exceptions\n- explicit UTF-8 encoding on transcript bundle writes\n- close read-only transactions in job repository\n\n### 📝 문서\n- rewrite README with full setup and usage guide\n- stop linking README to an untracked design spec\n- add setup and usage README\n- correct misleading SRT join comment\n\n### ✅ 테스트\n- fix model path env var names to match production\n- anonymize example speaker name in test fixtures\n- timeline regression fixtures for both engines' absolute timestamp preservation\n- add exact-boundary regression test for pause threshold\n\n### 🔧 변경사항\n- stop tracking real plist, replaced by example template\n- fix plist template placeholders and model path defaults\n- harden gitignore against secret and scratch-path leaks\n- expand .gitignore with standard Python/uv project entries\n- track remaining empty test package __init__.py files\n- untrack compiled bytecode and ignore __pycache__",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "worker main loop with asr-multitrack support and job monitoring, retry CLI, launchd entrypoint",
+            "watchdog wiring and startup reconciliation",
+            "footprint/system metrics observation, background job monitor, notifications",
+            "atomic transcript publish and source archiving",
+            "job repository with idempotency, claim, and reconciliation queries",
+            "job orchestration schema and backoff connection",
+            "whispermlx engine adapter for mixed-speaker meetings",
+            "whisper.cpp engine adapter",
+            "timeline-preserving ffmpeg normalization",
+            "markdown/txt/srt transcript formatters",
+            "speaker-aware re-segmentation for mixed-speaker meetings",
+            "canonical transcript schema and engine adapter interface",
+            "file and folder stabilization checks",
+            "source hashing for single files and multitrack sessions",
+            "scaffold project and inbox path parsing"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "register moved multitrack sessions, revalidate before enqueue",
+            "make retry's status transition atomic",
+            "treat file vanishing mid-stat as unstable, not a crash",
+            "clean up temp wav when ffmpeg invocation raises",
+            "refresh moved job paths, roll back failed reconciliation",
+            "guard reconciliation's recovery write against an aborted transaction",
+            "close reconciliation crash-guard and shared-connection races",
+            "build whispermlx transcript from one chronological word list",
+            "atomic upsert for register_job; verify content hash before reuse",
+            "archive_source never deletes/overwrites an existing destination",
+            "pass numpy arrays (not paths) to whispermlx, add mps->cpu fallback",
+            "cross-cutting review fixes from final whole-branch review",
+            "strengthen skip guards in timeline regression tests to check model file existence",
+            "notify before archiving on job completion, strengthen multitrack offset/sort test coverage",
+            "category derivation, exception isolation, and race in watch service pending-session polling",
+            "guard JobMonitor's swap-memory sampling against exceptions",
+            "explicit UTF-8 encoding on transcript bundle writes",
+            "close read-only transactions in job repository"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "rewrite README with full setup and usage guide",
+            "stop linking README to an untracked design spec",
+            "add setup and usage README",
+            "correct misleading SRT join comment"
+          ]
+        },
+        "테스트": {
+          "title": "✅ 테스트",
+          "items": [
+            "fix model path env var names to match production",
+            "anonymize example speaker name in test fixtures",
+            "timeline regression fixtures for both engines' absolute timestamp preservation",
+            "add exact-boundary regression test for pause threshold"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "stop tracking real plist, replaced by example template",
+            "fix plist template placeholders and model path defaults",
+            "harden gitignore against secret and scratch-path leaks",
+            "expand .gitignore with standard Python/uv project entries",
+            "track remaining empty test package __init__.py files",
+            "untrack compiled bytecode and ignore __pycache__"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.0.2",
       "project_types": [
