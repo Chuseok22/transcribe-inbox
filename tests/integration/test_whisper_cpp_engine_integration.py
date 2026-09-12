@@ -5,8 +5,8 @@ from transcribe_inbox.engines.whisper_cpp_engine import WhisperCppEngine
 from transcribe_inbox.engines.base import TranscriptionRequest
 
 WHISPER_CLI = os.environ.get("WHISPER_CLI_BINARY", "/opt/homebrew/bin/whisper-cli")
-VAD_MODEL = os.environ.get("WHISPER_VAD_MODEL", "/opt/homebrew/share/whisper-vad/ggml-silero-v6.2.0.bin")
-ASR_MODEL = os.environ.get("WHISPER_ASR_MODEL", "/opt/homebrew/share/whisper-models/ggml-large-v3.bin")
+VAD_MODEL = os.environ.get("WHISPER_VAD_MODEL_PATH", "/opt/homebrew/share/whisper-vad/ggml-silero-v6.2.0.bin")
+ASR_MODEL = os.environ.get("WHISPER_ASR_MODEL_PATH", "/opt/homebrew/share/whisper-models/ggml-large-v3.bin")
 
 pytestmark = pytest.mark.integration
 
