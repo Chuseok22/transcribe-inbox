@@ -28,8 +28,18 @@ if [ "$pid" = "-" ]; then
 fi
 
 echo "현재 PID: ${pid} — 재시작을 시작합니다..."
-launchctl unload "$PLIST"
-launchctl load "$PLIST"
+if ! launchctl unload "$PLIST"; then
+  echo "❌ launchctl unload 실패 — 로그를 확인하세요:"
+  echo "    ${LOG}"
+  echo "    ${ERROR_LOG}"
+  exit 1
+fi
+if ! launchctl load "$PLIST"; then
+  echo "❌ launchctl load 실패 — 로그를 확인하세요:"
+  echo "    ${LOG}"
+  echo "    ${ERROR_LOG}"
+  exit 1
+fi
 
 new_pid=""
 for _ in $(seq 1 20); do
