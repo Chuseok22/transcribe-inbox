@@ -45,7 +45,7 @@ new_pid=""
 for _ in $(seq 1 20); do
   sleep 0.5
   candidate="$(current_pid || true)"
-  if [ -n "${candidate:-}" ] && [ "$candidate" != "-" ]; then
+  if [ -n "${candidate:-}" ] && [ "$candidate" != "-" ] && [ "$candidate" != "$pid" ]; then
     new_pid="$candidate"
     break
   fi

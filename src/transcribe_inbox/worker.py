@@ -78,8 +78,13 @@ def process_one_job(conn, job, staging_root: Path) -> None:
     staging_root.mkdir(parents=True, exist_ok=True)
     source_path = Path(job.source_path)
     staging_dir: Path | None = None
+
     try:
         notify_started(job.category, source_path.name)
+    except Exception:
+        logger.exception("Job %s: notify_started failed", job.id)
+
+    try:
         engine = engine_for_mode(job.processing_mode)
 
         if job.processing_mode == MULTITRACK_MODE:
