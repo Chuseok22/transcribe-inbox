@@ -1,7 +1,20 @@
 # Changelog
 
-**현재 버전:** 0.1.4  
-**마지막 업데이트:** 2026-09-12T16:57:52Z  
+**현재 버전:** 0.2.0  
+**마지막 업데이트:** 2026-09-13T06:31:58Z  
+
+---
+
+## [0.2.0] - 2026-09-13
+
+**✨ 기능**
+- add manual launchd restart-daemon script
+- notify on transcription job start
+- add notify_started for job-start macOS notifications
+
+**🐛 수정**
+- harden restart script and job-start notification per PR review
+- guard launchctl unload/load with error handling
 
 ---
 
