@@ -13,7 +13,7 @@ from transcribe_inbox.db.jobs import mark_completed, mark_failed
 from transcribe_inbox.engines.base import TranscriptionEngine, TranscriptionRequest
 from transcribe_inbox.engines.whisper_cpp_engine import WhisperCppEngine
 from transcribe_inbox.engines.whisper_mlx_engine import WhisperMlxEngine
-from transcribe_inbox.notify import notify_completed, notify_failed
+from transcribe_inbox.notify import notify_completed, notify_failed, notify_started
 from transcribe_inbox.observability.job_monitor import JobMonitor
 from transcribe_inbox.observability.stall import Heartbeat
 from transcribe_inbox.preprocess.ffmpeg import normalize_to_wav
@@ -78,6 +78,12 @@ def process_one_job(conn, job, staging_root: Path) -> None:
     staging_root.mkdir(parents=True, exist_ok=True)
     source_path = Path(job.source_path)
     staging_dir: Path | None = None
+
+    try:
+        notify_started(job.category, source_path.name)
+    except Exception:
+        logger.exception("Job %s: notify_started failed", job.id)
+
     try:
         engine = engine_for_mode(job.processing_mode)
 

@@ -19,3 +19,7 @@ def notify_completed(category: str, label: str) -> None:
 
 def notify_failed(category: str, label: str, error_message: str) -> None:
     notify("전사 실패", f"{category} · {label}: {error_message}")
+
+
+def notify_started(category: str, label: str) -> None:
+    notify("전사 시작", f"{category} · {label}")
