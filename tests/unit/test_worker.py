@@ -70,6 +70,7 @@ def test_process_one_job_publishes_and_marks_completed(tmp_path, monkeypatch):
         lambda conn, job_id, **kwargs: marks.__setitem__("failed", (job_id, kwargs)),
     )
     notified = []
+    monkeypatch.setattr("transcribe_inbox.worker.notify_started", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.notify_completed", lambda *a: notified.append(a))
     monkeypatch.setattr("transcribe_inbox.worker.archive_source", lambda *a, **kw: tmp_path / "archived.m4a")
     # Replaces the real thread/subprocess-backed JobMonitor -- see its
@@ -85,6 +86,41 @@ def test_process_one_job_publishes_and_marks_completed(tmp_path, monkeypatch):
     assert marks["failed"] is None
     assert notified == [("컴퓨터네트워크", "2주차.m4a")]
     assert (output_root / "컴퓨터네트워크" / "2주차" / "transcript.json").exists()
+
+
+def test_process_one_job_notifies_started_before_engine_selection(tmp_path, monkeypatch):
+    source = tmp_path / "inbox" / "컴퓨터네트워크" / "2주차.m4a"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b"audio")
+    job = Job(id="job-6", source_path=str(source), source_hash="hash-6", category="컴퓨터네트워크", processing_mode="asr", tracks=None)
+
+    call_order = []
+    monkeypatch.setattr(
+        "transcribe_inbox.worker.notify_started",
+        lambda *a: call_order.append(("started", a)),
+    )
+    monkeypatch.setattr(
+        "transcribe_inbox.worker.engine_for_mode",
+        lambda mode: (call_order.append(("engine_for_mode", mode)), FakeEngine())[1],
+    )
+    monkeypatch.setattr(
+        "transcribe_inbox.worker.normalize_to_wav",
+        lambda path, **kwargs: tmp_path / "normalized.wav",
+    )
+    (tmp_path / "normalized.wav").write_bytes(b"wav")
+    output_root = tmp_path / "Transcripts"
+    monkeypatch.setattr(
+        "transcribe_inbox.worker.output_dir_for", lambda category, label: output_root / category / label,
+    )
+    monkeypatch.setattr("transcribe_inbox.worker.mark_completed", lambda conn, job_id, **kwargs: None)
+    monkeypatch.setattr("transcribe_inbox.worker.notify_completed", lambda *a: None)
+    monkeypatch.setattr("transcribe_inbox.worker.archive_source", lambda *a, **kw: tmp_path / "archived.m4a")
+    monkeypatch.setattr("transcribe_inbox.worker.JobMonitor", FakeJobMonitor)
+
+    process_one_job(conn=None, job=job, staging_root=tmp_path / "staging")
+
+    assert call_order[0] == ("started", ("컴퓨터네트워크", "2주차.m4a"))
+    assert call_order[1] == ("engine_for_mode", "asr")
 
 
 def test_process_one_job_marks_failed_on_engine_error(tmp_path, monkeypatch):
@@ -111,6 +147,7 @@ def test_process_one_job_marks_failed_on_engine_error(tmp_path, monkeypatch):
         lambda conn, job_id, **kwargs: marks.__setitem__("failed", (job_id, kwargs)),
     )
     notified = []
+    monkeypatch.setattr("transcribe_inbox.worker.notify_started", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.notify_failed", lambda *a: notified.append(a))
 
     process_one_job(conn=None, job=job, staging_root=tmp_path / "staging")
@@ -138,6 +175,7 @@ def test_process_one_job_cleans_up_staging_dir_when_publish_fails(tmp_path, monk
         lambda staging_dir, final_dir: (_ for _ in ()).throw(OSError("disk full")),
     )
     monkeypatch.setattr("transcribe_inbox.worker.mark_failed", lambda *a, **kw: None)
+    monkeypatch.setattr("transcribe_inbox.worker.notify_started", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.notify_failed", lambda *a: None)
 
     staging_root = tmp_path / "staging"
@@ -205,6 +243,7 @@ def test_process_one_job_handles_asr_multitrack_session(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "transcribe_inbox.worker.output_dir_for", lambda category, label: output_root / category / label,
     )
+    monkeypatch.setattr("transcribe_inbox.worker.notify_started", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.notify_completed", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.archive_source", lambda *a, **kw: tmp_path / "archived")
     monkeypatch.setattr("transcribe_inbox.worker.JobMonitor", FakeJobMonitor)
@@ -283,6 +322,7 @@ def test_process_one_job_keeps_completed_status_when_archive_fails(tmp_path, mon
     monkeypatch.setattr("transcribe_inbox.worker.archive_source", _raise_archive)
     notified_failed = []
     notified_completed = []
+    monkeypatch.setattr("transcribe_inbox.worker.notify_started", lambda *a: None)
     monkeypatch.setattr("transcribe_inbox.worker.notify_failed", lambda *a: notified_failed.append(a))
     monkeypatch.setattr("transcribe_inbox.worker.notify_completed", lambda *a: notified_completed.append(a))
 
