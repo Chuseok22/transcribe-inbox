@@ -1,4 +1,4 @@
-from transcribe_inbox.notify import notify, notify_completed, notify_failed
+from transcribe_inbox.notify import notify, notify_completed, notify_failed, notify_started
 
 def test_notify_invokes_osascript(monkeypatch):
     captured = {}
@@ -22,3 +22,13 @@ def test_notify_completed_and_failed_build_readable_messages(monkeypatch):
 
     assert "완료" in captured[0][2] or "완료" in captured[0][-1]
     assert "실패" in captured[1][2] or "실패" in captured[1][-1]
+
+def test_notify_started_builds_readable_message(monkeypatch):
+    captured = []
+    monkeypatch.setattr("subprocess.run", lambda args, **kwargs: captured.append(args))
+
+    notify_started("컴퓨터네트워크", "2주차.m4a")
+
+    assert "시작" in captured[0][2] or "시작" in captured[0][-1]
+    assert "컴퓨터네트워크" in captured[0][-1]
+    assert "2주차.m4a" in captured[0][-1]
