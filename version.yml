@@ -25,11 +25,11 @@
 # - basic: version.yml only
 # ===
 
-version: "0.2.0"
-version_code: 8  # app build number
+version: "0.3.0"
+version_code: 9  # app build number
 project_types: ["basic"] # first entry is primary
 metadata:
-  last_updated: "2026-09-13"
+  last_updated: "2026-09-14"
   last_updated_by: "Chuseok22"
   default_branch: "main"
   integration_date: "2026-09-09"

@@ -1,13 +1,41 @@
 {
   "metadata": {
-    "lastUpdated": "2026-09-13T06:31:58Z",
-    "currentVersion": "0.2.0",
+    "lastUpdated": "2026-09-14T15:11:43Z",
+    "currentVersion": "0.3.0",
     "projectTypes": [
       "basic"
     ],
-    "totalReleases": 7
+    "totalReleases": 8
   },
   "releases": [
+    {
+      "version": "0.3.0",
+      "project_types": [
+        "basic"
+      ],
+      "date": "2026-09-14",
+      "pr_number": null,
+      "raw_summary": "## [0.3.0]\n\n### ✨ 기능\n- detect and retry whisper.cpp repetition loops, fall back to a review placeholder\n- add WAV span extraction for repetition-retry re-decoding\n- detect consecutive near-identical segment runs (repetition loops)\n\n### 🐛 수정\n- degrade gracefully on retry-decode failure, cap retry cost, and log repetition handling\n- disable whisper-cli context carryover to stop cross-window repetition loops\n- clamp inverted retry spans to empty instead of silently over-reading",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "detect and retry whisper.cpp repetition loops, fall back to a review placeholder",
+            "add WAV span extraction for repetition-retry re-decoding",
+            "detect consecutive near-identical segment runs (repetition loops)"
+          ]
+        },
+        "수정": {
+          "title": "🐛 수정",
+          "items": [
+            "degrade gracefully on retry-decode failure, cap retry cost, and log repetition handling",
+            "disable whisper-cli context carryover to stop cross-window repetition loops",
+            "clamp inverted retry spans to empty instead of silently over-reading"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.2.0",
       "project_types": [

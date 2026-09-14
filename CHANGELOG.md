@@ -1,7 +1,21 @@
 # Changelog
 
-**현재 버전:** 0.2.0  
-**마지막 업데이트:** 2026-09-13T06:31:58Z  
+**현재 버전:** 0.3.0  
+**마지막 업데이트:** 2026-09-14T15:11:43Z  
+
+---
+
+## [0.3.0] - 2026-09-14
+
+**✨ 기능**
+- detect and retry whisper.cpp repetition loops, fall back to a review placeholder
+- add WAV span extraction for repetition-retry re-decoding
+- detect consecutive near-identical segment runs (repetition loops)
+
+**🐛 수정**
+- degrade gracefully on retry-decode failure, cap retry cost, and log repetition handling
+- disable whisper-cli context carryover to stop cross-window repetition loops
+- clamp inverted retry spans to empty instead of silently over-reading
 
 ---
 
