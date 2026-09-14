@@ -143,3 +143,34 @@ def test_monitoring_pid_is_none_when_idle():
         engine_version="1.0.0",
     )
     assert engine.monitoring_pid() is None
+
+
+def test_transcribe_disables_context_carryover(tmp_path, monkeypatch):
+    captured_args = {}
+
+    def fake_popen(args, stdout, stderr):
+        captured_args["args"] = args
+        of_index = args.index("-of")
+        json_path = Path(args[of_index + 1]).with_suffix(".json")
+        json_path.write_text(json.dumps(FAKE_WHISPER_JSON))
+        return FakeProcess(returncode=0)
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    engine = WhisperCppEngine(
+        binary_path="/opt/homebrew/bin/whisper-cli",
+        vad_model_path="/models/ggml-silero-v6.2.0.bin",
+        model_path="/models/ggml-large-v3.bin",
+        engine_version="1.0.0",
+    )
+    audio_path = tmp_path / "normalized.wav"
+    _write_fake_wav(audio_path, duration_seconds=20.0)
+    request = TranscriptionRequest(
+        audio_path=audio_path, language="ko", alignment_enabled=False,
+        diarization_enabled=False, source_filename="2주차.m4a",
+    )
+    engine.transcribe(request)
+
+    args = captured_args["args"]
+    mc_index = args.index("-mc")
+    assert args[mc_index + 1] == "0"

@@ -49,6 +49,7 @@ class WhisperCppEngine(TranscriptionEngine):
                 "-oj",
                 "-of", str(output_prefix),
                 "-f", str(request.audio_path),
+                "-mc", "0",
             ]
             if request.language:
                 args += ["-l", request.language]
