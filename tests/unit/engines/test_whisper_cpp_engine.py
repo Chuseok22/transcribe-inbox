@@ -1,6 +1,7 @@
 import json
 import wave
 from pathlib import Path
+import pytest
 from transcribe_inbox.engines.whisper_cpp_engine import WhisperCppEngine
 from transcribe_inbox.engines.base import TranscriptionRequest
 
@@ -174,3 +175,131 @@ def test_transcribe_disables_context_carryover(tmp_path, monkeypatch):
     args = captured_args["args"]
     mc_index = args.index("-mc")
     assert args[mc_index + 1] == "0"
+
+
+REPEATED_WHISPER_JSON = {
+    "result": {"language": "ko"},
+    "transcription": [
+        {"offsets": {"from": 0, "to": 2000}, "text": " 정상 발화입니다."},
+        {"offsets": {"from": 2000, "to": 4000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 4000, "to": 6000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 6000, "to": 8000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 8000, "to": 10000}, "text": " rfc에 디파인이 되어있는"},
+    ],
+}
+
+CLEAN_RETRY_JSON = {
+    "result": {"language": "ko"},
+    "transcription": [
+        {"offsets": {"from": 0, "to": 3000}, "text": " 실제로는 다른 내용을 말했습니다."},
+    ],
+}
+
+STILL_REPEATING_RETRY_JSON = {
+    "result": {"language": "ko"},
+    "transcription": [
+        {"offsets": {"from": 0, "to": 1000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 1000, "to": 2000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 2000, "to": 3000}, "text": " rfc에 디파인이 되어있는"},
+    ],
+}
+
+
+def _make_engine() -> WhisperCppEngine:
+    return WhisperCppEngine(
+        binary_path="/opt/homebrew/bin/whisper-cli",
+        vad_model_path="/models/ggml-silero-v6.2.0.bin",
+        model_path="/models/ggml-large-v3.bin",
+        engine_version="1.0.0",
+    )
+
+
+def _fake_popen_returning(json_bodies):
+    """Returns (fake_popen, calls) -- fake_popen writes json_bodies[n] to -of
+    on its (n+1)-th call, and `calls` records every args list it was called
+    with, in order."""
+    calls = []
+
+    def fake_popen(args, stdout, stderr):
+        calls.append(args)
+        of_index = args.index("-of")
+        json_path = Path(args[of_index + 1]).with_suffix(".json")
+        body = json_bodies[len(calls) - 1]
+        json_path.write_text(json.dumps(body))
+        return FakeProcess(returncode=0)
+
+    return fake_popen, calls
+
+
+def _make_request(tmp_path) -> TranscriptionRequest:
+    audio_path = tmp_path / "normalized.wav"
+    _write_fake_wav(audio_path, duration_seconds=20.0)
+    return TranscriptionRequest(
+        audio_path=audio_path, language="ko", alignment_enabled=False,
+        diarization_enabled=False, source_filename="x.m4a",
+    )
+
+
+def test_no_repetition_leaves_segments_untouched(tmp_path, monkeypatch):
+    fake_popen, calls = _fake_popen_returning([FAKE_WHISPER_JSON])
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))
+
+    assert len(calls) == 1  # no retry call made
+    assert len(doc.segments) == 2
+    assert doc.segments[0].text == "첫 번째 문장입니다."
+
+
+def test_repetition_resolved_on_first_retry_attempt(tmp_path, monkeypatch):
+    fake_popen, calls = _fake_popen_returning([REPEATED_WHISPER_JSON, CLEAN_RETRY_JSON])
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "transcribe_inbox.engines.whisper_cpp_engine.extract_wav_span",
+        lambda source_path, start_seconds, end_seconds, dest_path: start_seconds - 0.5,
+    )
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))
+
+    assert len(calls) == 2  # initial decode + exactly one retry
+    assert len(doc.segments) == 2
+    assert doc.segments[0].text == "정상 발화입니다."
+    assert doc.segments[1].text == "실제로는 다른 내용을 말했습니다."
+    assert doc.segments[1].start == pytest.approx(1.5)
+    assert doc.segments[1].end == pytest.approx(4.5)
+
+
+def test_repetition_falls_back_to_placeholder_after_max_retries(tmp_path, monkeypatch):
+    fake_popen, calls = _fake_popen_returning(
+        [REPEATED_WHISPER_JSON, STILL_REPEATING_RETRY_JSON, STILL_REPEATING_RETRY_JSON]
+    )
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "transcribe_inbox.engines.whisper_cpp_engine.extract_wav_span",
+        lambda source_path, start_seconds, end_seconds, dest_path: start_seconds,
+    )
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))
+
+    assert len(calls) == 3  # initial decode + exactly MAX_REPETITION_RETRIES(2) retries
+    assert len(doc.segments) == 2
+    assert doc.segments[1].text.startswith("[⚠️ 반복 감지 - 확인 필요]")
+    assert "rfc에 디파인이 되어있는" in doc.segments[1].text
+    assert doc.segments[1].start == 2.0
+    assert doc.segments[1].end == 10.0
+
+
+def test_empty_retry_result_is_treated_as_a_failed_attempt_not_silent_deletion(tmp_path, monkeypatch):
+    empty_json = {"result": {"language": "ko"}, "transcription": []}
+    fake_popen, calls = _fake_popen_returning([REPEATED_WHISPER_JSON, empty_json, empty_json])
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "transcribe_inbox.engines.whisper_cpp_engine.extract_wav_span",
+        lambda source_path, start_seconds, end_seconds, dest_path: start_seconds,
+    )
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))
+
+    assert len(calls) == 3
+    assert len(doc.segments) == 2
+    assert doc.segments[1].text.startswith("[⚠️ 반복 감지 - 확인 필요]")
