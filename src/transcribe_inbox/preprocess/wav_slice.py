@@ -24,6 +24,11 @@ def extract_wav_span(
         # crash the whole transcription instead of just yielding an empty clip.
         padded_start = min(max(0.0, start_seconds - PAD_SECONDS), total_seconds)
         padded_end = min(total_seconds, end_seconds + PAD_SECONDS)
+        # A malformed/inverted span (end before start -- e.g. from a
+        # miscomputed caller) must not fall through to readframes() with a
+        # negative frame count, which the wave module silently reinterprets
+        # as "read to end of chunk" instead of raising or returning empty.
+        padded_end = max(padded_start, padded_end)
 
         start_frame = int(padded_start * framerate)
         end_frame = int(padded_end * framerate)

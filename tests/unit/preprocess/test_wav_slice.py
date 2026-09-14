@@ -72,3 +72,19 @@ def test_does_not_crash_when_start_seconds_is_beyond_source_duration(tmp_path):
     assert absolute_start == 5.0  # clamped to the source's own duration
     with wave.open(str(dest), "rb") as f:
         assert f.getnframes() == 0
+
+
+def test_inverted_span_yields_an_empty_clip_not_a_silent_overread(tmp_path):
+    """end_seconds < start_seconds (a malformed/miscomputed span) must not
+    fall through to wave.readframes() with a negative frame count -- the
+    wave module silently reinterprets a negative count as "read to end of
+    chunk", which would return several unrelated seconds of audio instead
+    of failing loudly or yielding nothing."""
+    source = tmp_path / "source.wav"
+    _write_wav(source, duration_seconds=20.0)
+    dest = tmp_path / "span.wav"
+
+    extract_wav_span(source, start_seconds=10.0, end_seconds=2.0, dest_path=dest)
+
+    with wave.open(str(dest), "rb") as f:
+        assert f.getnframes() == 0
