@@ -1,4 +1,5 @@
 import json
+import logging
 import wave
 from pathlib import Path
 import pytest
@@ -303,3 +304,69 @@ def test_empty_retry_result_is_treated_as_a_failed_attempt_not_silent_deletion(t
     assert len(calls) == 3
     assert len(doc.segments) == 2
     assert doc.segments[1].text.startswith("[⚠️ 반복 감지 - 확인 필요]")
+
+
+def test_retry_decode_failure_falls_through_to_placeholder_without_crashing(tmp_path, monkeypatch):
+    call_count = {"n": 0}
+
+    def fake_popen(args, stdout, stderr):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            of_index = args.index("-of")
+            json_path = Path(args[of_index + 1]).with_suffix(".json")
+            json_path.write_text(json.dumps(REPEATED_WHISPER_JSON))
+            return FakeProcess(returncode=0)
+        # Both retry attempts "crash" (non-zero exit).
+        return FakeProcess(returncode=1, stderr=b"whisper-cli crashed")
+
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "transcribe_inbox.engines.whisper_cpp_engine.extract_wav_span",
+        lambda source_path, start_seconds, end_seconds, dest_path: start_seconds,
+    )
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))  # must not raise
+
+    assert call_count["n"] == 3
+    assert len(doc.segments) == 2
+    assert doc.segments[1].text.startswith("[⚠️ 반복 감지 - 확인 필요]")
+
+
+LONG_REPEATED_WHISPER_JSON = {
+    "result": {"language": "ko"},
+    "transcription": [
+        {"offsets": {"from": 0, "to": 2000}, "text": " 정상 발화입니다."},
+        {"offsets": {"from": 2000, "to": 4000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 4000, "to": 100000}, "text": " rfc에 디파인이 되어있는"},
+        {"offsets": {"from": 100000, "to": 200000}, "text": " rfc에 디파인이 되어있는"},
+    ],
+}
+
+
+def test_span_exceeding_retry_duration_cap_skips_straight_to_placeholder(tmp_path, monkeypatch):
+    fake_popen, calls = _fake_popen_returning([LONG_REPEATED_WHISPER_JSON])
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+
+    doc = _make_engine().transcribe(_make_request(tmp_path))
+
+    assert len(calls) == 1  # no retry attempted -- span too long to be worth re-decoding
+    assert len(doc.segments) == 2
+    assert doc.segments[1].text.startswith("[⚠️ 반복 감지 - 확인 필요]")
+    assert doc.segments[1].start == 2.0
+    assert doc.segments[1].end == 200.0
+
+
+def test_logs_when_a_span_is_collapsed_to_a_placeholder(tmp_path, monkeypatch, caplog):
+    fake_popen, calls = _fake_popen_returning(
+        [REPEATED_WHISPER_JSON, STILL_REPEATING_RETRY_JSON, STILL_REPEATING_RETRY_JSON]
+    )
+    monkeypatch.setattr("subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        "transcribe_inbox.engines.whisper_cpp_engine.extract_wav_span",
+        lambda source_path, start_seconds, end_seconds, dest_path: start_seconds,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="transcribe_inbox.engines.whisper_cpp_engine"):
+        _make_engine().transcribe(_make_request(tmp_path))
+
+    assert any("collapsing to placeholder" in record.message for record in caplog.records)

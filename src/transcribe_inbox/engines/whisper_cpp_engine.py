@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 import subprocess
 import tempfile
 from dataclasses import replace
@@ -11,8 +12,11 @@ from transcribe_inbox.preprocess.wav_slice import extract_wav_span
 from transcribe_inbox.transcript.repetition import find_repetition_span
 from transcribe_inbox.transcript.schema import SCHEMA_VERSION, Segment, TranscriptDocument
 
+logger = logging.getLogger(__name__)
+
 PIPELINE_VERSION = "0.1.0"
 MAX_REPETITION_RETRIES = 2
+MAX_RETRY_SPAN_SECONDS = 180.0
 REPETITION_PLACEHOLDER_PREFIX = "[⚠️ 반복 감지 - 확인 필요] "
 
 
@@ -142,6 +146,26 @@ class WhisperCppEngine(TranscriptionEngine):
     ) -> list[Segment]:
         span_start = span_segments[0].start
         span_end = span_segments[-1].end
+
+        placeholder = [Segment(
+            start=span_start,
+            end=span_end,
+            text=f"{REPETITION_PLACEHOLDER_PREFIX}{span_segments[0].text}",
+        )]
+
+        logger.info(
+            "Repetition span detected: %.1fs-%.1fs (%d segments)",
+            span_start, span_end, len(span_segments),
+        )
+
+        if span_end - span_start > MAX_RETRY_SPAN_SECONDS:
+            logger.warning(
+                "Repetition span %.1fs-%.1fs exceeds %.0fs retry cap -- collapsing to placeholder "
+                "without retrying (re-decoding would cost more wall-clock than it's likely to fix)",
+                span_start, span_end, MAX_RETRY_SPAN_SECONDS,
+            )
+            return placeholder
+
         sub_wav = tmp_path / "retry.wav"
         absolute_offset = extract_wav_span(request.audio_path, span_start, span_end, sub_wav)
 
@@ -150,12 +174,23 @@ class WhisperCppEngine(TranscriptionEngine):
         # the entropy-fallback threshold and force a non-zero start
         # temperature, so whisper-cli's own fallback ladder actually engages.
         perturbations: list[list[str]] = [[], ["-et", "2.6", "-tp", "0.5"]]
-        for attempt_args in perturbations[:MAX_REPETITION_RETRIES]:
+        for attempt_num, attempt_args in enumerate(perturbations[:MAX_REPETITION_RETRIES], start=1):
             extra_args = ["-mc", "0", *attempt_args]
             if request.language:
                 extra_args += ["-l", request.language]
 
-            raw = self._run_whisper_cli(sub_wav, extra_args)
+            try:
+                raw = self._run_whisper_cli(sub_wav, extra_args)
+            except Exception:
+                # A retry decode itself failing (bad audio, whisper-cli crash) must
+                # not take down an otherwise-successful transcription -- treat it
+                # exactly like a still-repeating attempt and keep going.
+                logger.warning(
+                    "Repetition retry attempt %d/%d failed to decode for span %.1fs-%.1fs",
+                    attempt_num, MAX_REPETITION_RETRIES, span_start, span_end, exc_info=True,
+                )
+                continue
+
             retried_segments = self._segments_from_raw(raw, time_offset=absolute_offset)
 
             # An empty result (e.g. the padded span decoded to silence) is a
@@ -163,10 +198,19 @@ class WhisperCppEngine(TranscriptionEngine):
             # content would be silently dropped instead of falling through
             # to the placeholder below.
             if retried_segments and find_repetition_span(retried_segments) is None:
+                logger.info(
+                    "Repetition retry attempt %d/%d resolved span %.1fs-%.1fs",
+                    attempt_num, MAX_REPETITION_RETRIES, span_start, span_end,
+                )
                 return retried_segments
 
-        return [Segment(
-            start=span_start,
-            end=span_end,
-            text=f"{REPETITION_PLACEHOLDER_PREFIX}{span_segments[0].text}",
-        )]
+            logger.info(
+                "Repetition retry attempt %d/%d still looping for span %.1fs-%.1fs",
+                attempt_num, MAX_REPETITION_RETRIES, span_start, span_end,
+            )
+
+        logger.warning(
+            "Repetition span %.1fs-%.1fs unresolved after %d attempts -- collapsing to placeholder",
+            span_start, span_end, MAX_REPETITION_RETRIES,
+        )
+        return placeholder
