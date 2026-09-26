@@ -1,7 +1,14 @@
 # Changelog
 
-**현재 버전:** 0.3.0  
-**마지막 업데이트:** 2026-09-14T15:11:43Z  
+**현재 버전:** 0.3.1  
+**마지막 업데이트:** 2026-09-26T09:59:35Z  
+
+---
+
+## [0.3.1] - 2026-09-26
+
+**📝 문서**
+- clarify asr-multitrack session folder and non-audio file pitfalls
 
 ---
 
