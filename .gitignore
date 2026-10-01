@@ -25,3 +25,6 @@ tests/fixtures/*.meta.json
 /.superpowers/
 launchd/*.plist
 .env.*
+website/node_modules/
+website/.vitepress/dist/
+website/.vitepress/cache/
