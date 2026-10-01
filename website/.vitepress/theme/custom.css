@@ -1,0 +1,519 @@
+/*
+ * transcribe-inbox theme: "Inbox → Notes"
+ * Warm paper and ink, one ink-blue accent. Newsreader for display headings,
+ * Inter for text and UI, JetBrains Mono for code. Applies to the whole site;
+ * landing-only rules live in landing.css.
+ */
+
+/* ---------- Design tokens ---------- */
+
+:root {
+  --ti-bg: #fbf8f3;
+  --ti-surface: #f3eee6;
+  --ti-surface-2: #eae3d8;
+  --ti-paper: #fffdf9;
+  --ti-ink: #2a2420;
+  --ti-muted: #6a605a;
+  --ti-rule: #e2d9cc;
+  --ti-accent: #2f4bbf;
+  --ti-accent-hover: #2a40a0;
+  --ti-accent-ink: #ffffff;
+  --ti-accent-soft: #e4e8f8;
+  --ti-ok: #23774a;
+  --ti-stamp: #8a5a2b;
+  --ti-stamp-soft: rgba(138, 90, 43, 0.1);
+  --ti-shadow: 0 1px 0 rgba(42, 36, 32, 0.04), 0 18px 40px -22px rgba(42, 36, 32, 0.28),
+    0 4px 12px -6px rgba(42, 36, 32, 0.1);
+
+  /* Code panes stay dark in both themes (see "Code blocks" below). */
+  --ti-code-bg: #24201c;
+  --ti-code-text: #ede6de;
+  --ti-code-muted: #a89f99;
+  --ti-code-rule: #3a332d;
+
+  --ti-sans-cjk: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', 'PingFang SC', 'Noto Sans SC',
+    'Hiragino Sans GB';
+  --ti-font-serif: 'Newsreader Variable', 'Iowan Old Style', Georgia, 'AppleMyungjo', 'Noto Serif KR',
+    'Songti SC', 'Noto Serif SC', serif;
+  --ti-font-serif-ko: 'AppleMyungjo', 'Noto Serif KR', var(--ti-font-serif);
+  --ti-font-serif-zh: 'Songti SC', 'Noto Serif SC', var(--ti-font-serif);
+  --ti-font-sans: 'Inter Variable', var(--ti-sans-cjk), system-ui, sans-serif;
+  --ti-font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, var(--ti-sans-cjk), monospace;
+
+  --ti-gutter: clamp(16px, 4vw, 48px);
+  --ti-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --ti-fast: 150ms;
+  --ti-radius-sm: 6px;
+  --ti-radius: 10px;
+  --ti-radius-lg: 16px;
+}
+
+.dark {
+  --ti-bg: #17151a;
+  --ti-surface: #211e24;
+  --ti-surface-2: #2b2730;
+  --ti-paper: #1c1a20;
+  --ti-ink: #eee8e2;
+  --ti-muted: #a89f99;
+  --ti-rule: #37323c;
+  --ti-accent: #8fa6ff;
+  --ti-accent-hover: #a9bbff;
+  --ti-accent-ink: #14131a;
+  --ti-accent-soft: #262a40;
+  --ti-ok: #6fcb95;
+  --ti-stamp: #d6a878;
+  --ti-stamp-soft: rgba(214, 168, 120, 0.1);
+  --ti-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 24px 50px -24px rgba(0, 0, 0, 0.7);
+
+  --ti-code-bg: #100f13;
+  --ti-code-rule: #2e2a33;
+}
+
+/* ---------- VitePress variable overrides ---------- */
+
+:root,
+.dark {
+  --vp-font-family-base: var(--ti-font-sans);
+  --vp-font-family-mono: var(--ti-font-mono);
+
+  --vp-c-bg: var(--ti-bg);
+  --vp-c-bg-alt: var(--ti-surface);
+  --vp-c-bg-elv: var(--ti-paper);
+  --vp-c-bg-soft: var(--ti-surface);
+  --vp-c-text-1: var(--ti-ink);
+  --vp-c-text-2: var(--ti-muted);
+  --vp-c-text-3: var(--ti-muted);
+  --vp-c-divider: var(--ti-rule);
+  --vp-c-gutter: var(--ti-rule);
+  --vp-c-border: var(--ti-rule);
+  --vp-c-default-soft: var(--ti-surface-2);
+
+  --vp-c-brand-1: var(--ti-accent);
+  --vp-c-brand-2: var(--ti-accent-hover);
+  --vp-c-brand-3: var(--ti-accent);
+  --vp-c-brand-soft: var(--ti-accent-soft);
+
+  --vp-c-tip-1: var(--ti-accent);
+  --vp-c-tip-soft: var(--ti-accent-soft);
+  --vp-c-warning-1: var(--ti-stamp);
+  --vp-c-warning-2: var(--ti-stamp);
+  --vp-c-warning-soft: var(--ti-stamp-soft);
+
+  --vp-button-brand-bg: var(--ti-accent);
+  --vp-button-brand-text: var(--ti-accent-ink);
+  --vp-button-brand-border: var(--ti-accent);
+  --vp-button-brand-hover-bg: var(--ti-accent-hover);
+  --vp-button-brand-hover-text: var(--ti-accent-ink);
+  --vp-button-brand-hover-border: var(--ti-accent-hover);
+  --vp-button-brand-active-bg: var(--ti-accent-hover);
+  --vp-button-brand-active-border: var(--ti-accent-hover);
+
+  --vp-code-font-size: 0.875em;
+  --vp-code-color: var(--ti-ink);
+  --vp-code-bg: var(--ti-surface);
+  --vp-code-block-bg: var(--ti-code-bg);
+  --vp-code-block-color: var(--ti-code-text);
+  --vp-code-block-divider-color: var(--ti-code-rule);
+  --vp-code-lang-color: var(--ti-code-muted);
+  --vp-code-line-number-color: var(--ti-code-muted);
+  --vp-code-copy-code-bg: var(--ti-code-bg);
+  --vp-code-copy-code-border-color: var(--ti-code-rule);
+  --vp-code-copy-code-hover-bg: #2f2924;
+  --vp-code-copy-code-hover-border-color: var(--ti-code-muted);
+  --vp-code-copy-copied-text-content: 'Copied';
+
+  --vp-nav-bg-color: var(--ti-bg);
+  --vp-local-nav-bg-color: var(--ti-bg);
+  --vp-sidebar-bg-color: var(--ti-bg);
+  --vp-custom-block-font-size: 15px;
+}
+
+body {
+  background: var(--ti-bg);
+  color: var(--ti-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--ti-accent-soft);
+  color: var(--ti-ink);
+}
+
+/* ---------- Global focus ---------- */
+
+:focus-visible {
+  outline: 2px solid var(--ti-accent);
+  outline-offset: 3px;
+}
+
+/* ---------- Navigation ---------- */
+
+.VPNavBarTitle .title {
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: color var(--ti-fast);
+}
+
+/* Inbox-tray mark, drawn with a mask so it follows the accent token. */
+.VPNavBarTitle .title::before {
+  content: '';
+  width: 22px;
+  height: 22px;
+  flex: none;
+  background: var(--ti-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M3 13l2.2-7.2A2 2 0 0 1 7.1 4.4h9.8a2 2 0 0 1 1.9 1.4L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M3 13h5l1.5 2.5h5L16 13h5'/%3E%3Cpath d='M9 8.5v2M12 7v5M15 8.5v2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M3 13l2.2-7.2A2 2 0 0 1 7.1 4.4h9.8a2 2 0 0 1 1.9 1.4L21 13v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M3 13h5l1.5 2.5h5L16 13h5'/%3E%3Cpath d='M9 8.5v2M12 7v5M15 8.5v2'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.VPNavBarTitle .title:hover {
+  color: var(--ti-accent);
+}
+
+/* Keep a hairline under the bar on every page, including the landing top. */
+.VPNavBar .divider-line,
+.VPNavBar.home.top .divider-line {
+  background-color: var(--ti-rule);
+}
+
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .button {
+  border-radius: var(--ti-radius-sm);
+  transition:
+    color var(--ti-fast),
+    background-color var(--ti-fast);
+}
+
+.VPNavBarMenuLink:hover {
+  background: var(--ti-surface);
+}
+
+.VPNavBarMenuLink.active {
+  color: var(--ti-accent);
+}
+
+.DocSearch-Button,
+.VPNavBarSearch .DocSearch-Button {
+  border-radius: 8px;
+}
+
+/* ---------- Sidebar ---------- */
+
+.VPSidebar {
+  border-right: 1px solid var(--ti-rule);
+}
+
+.VPSidebarItem.level-0 > .item > .text,
+.VPSidebarItem.level-0 > .item .text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ti-ink);
+}
+
+.VPSidebarItem.level-1 .link {
+  border-radius: var(--ti-radius-sm);
+  margin-left: -10px;
+  padding-left: 10px;
+  transition: background-color var(--ti-fast);
+}
+
+.VPSidebarItem.level-1 .link:hover {
+  background: var(--ti-surface);
+}
+
+.VPSidebarItem.level-1 .link:active {
+  background: var(--ti-surface-2);
+}
+
+.VPSidebarItem.level-1 .text {
+  color: var(--ti-muted);
+  transition: color var(--ti-fast);
+}
+
+.VPSidebarItem.level-1 .link:hover .text {
+  color: var(--ti-ink);
+}
+
+.VPSidebarItem.is-active > .item .indicator {
+  background-color: var(--ti-accent);
+  width: 2px;
+}
+
+.VPSidebarItem.is-active > .item .text,
+.VPSidebarItem.is-active > .item .link > .text {
+  color: var(--ti-accent);
+  font-weight: 600;
+}
+
+/* ---------- Doc content ---------- */
+
+.vp-doc h1,
+.vp-doc h2 {
+  font-family: var(--ti-font-serif);
+  font-weight: 400;
+  font-optical-sizing: auto;
+}
+
+.vp-doc h1 {
+  font-size: clamp(2.1rem, 1.7rem + 1.4vw, 2.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.vp-doc h2 {
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--ti-rule);
+  font-size: clamp(1.55rem, 1.35rem + 0.6vw, 1.85rem);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.vp-doc h3 {
+  margin-top: 36px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.75;
+}
+
+.vp-doc a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ti-accent) 40%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition:
+    color var(--ti-fast),
+    text-decoration-color var(--ti-fast);
+}
+
+.vp-doc a:hover {
+  color: var(--ti-accent-hover);
+  text-decoration-color: currentColor;
+}
+
+.vp-doc a:active {
+  color: var(--ti-ink);
+}
+
+.vp-doc :not(pre) > code {
+  border: 1px solid var(--ti-rule);
+  border-radius: 5px;
+  padding: 2px 5px;
+}
+
+.vp-doc a > code {
+  color: var(--ti-accent);
+}
+
+.vp-doc blockquote {
+  border-left: 2px solid var(--ti-accent);
+}
+
+.vp-doc table {
+  border-radius: var(--ti-radius);
+  border: 1px solid var(--ti-rule);
+}
+
+.vp-doc tr {
+  border-top-color: var(--ti-rule);
+}
+
+.vp-doc th,
+.vp-doc td {
+  border: 0;
+  border-top: 1px solid var(--ti-rule);
+}
+
+.vp-doc th {
+  background: var(--ti-surface);
+  color: var(--ti-ink);
+  font-weight: 600;
+}
+
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+
+/* ---------- Custom blocks ---------- */
+
+.custom-block {
+  border: 1px solid var(--ti-rule);
+  border-left: 3px solid var(--ti-muted);
+  border-radius: var(--ti-radius);
+  background: var(--ti-surface);
+  color: var(--ti-ink);
+}
+
+.custom-block.tip {
+  border-left-color: var(--ti-accent);
+  background: var(--ti-accent-soft);
+}
+
+.custom-block.warning {
+  border-left-color: var(--ti-stamp);
+  background: var(--ti-stamp-soft);
+}
+
+.custom-block.danger {
+  border-left-color: var(--vp-c-danger-1);
+}
+
+.custom-block .custom-block-title {
+  font-weight: 600;
+}
+
+.custom-block.warning .custom-block-title {
+  color: var(--ti-stamp);
+}
+
+.custom-block a {
+  color: var(--ti-accent);
+}
+
+/* ---------- Code blocks ----------
+   Shell commands are what readers copy most, so the panes stay dark in both
+   themes, tinted toward the warm ink. Shiki uses its dark palette inside. */
+
+.vp-doc div[class*='language-'] {
+  border-top: 1px solid var(--ti-code-rule);
+  border-bottom: 1px solid var(--ti-code-rule);
+}
+
+/* Below 640px VitePress runs code panes edge to edge; keep that, square. */
+@media (min-width: 640px) {
+  .vp-doc div[class*='language-'] {
+    border: 1px solid var(--ti-code-rule);
+    border-radius: var(--ti-radius);
+  }
+}
+
+.vp-doc div[class*='language-'] > span.lang {
+  font-family: var(--ti-font-mono);
+  color: var(--ti-code-muted);
+}
+
+html:not(.dark) .vp-doc div[class*='language-'] .shiki span {
+  color: var(--shiki-dark, inherit);
+}
+
+/* github-dark's comment grey is below 4.5:1 on this pane; lift it. */
+.vp-doc div[class*='language-'] .shiki span[style*='#6A737D'] {
+  color: var(--ti-code-muted) !important;
+}
+
+.vp-doc [class*='language-'] > button.copy {
+  border-radius: var(--ti-radius-sm);
+}
+
+/* ---------- Aside, pager, footer of doc ---------- */
+
+.VPDocAsideOutline .outline-link {
+  transition: color var(--ti-fast);
+}
+
+.VPDocAsideOutline .outline-link:hover,
+.VPDocAsideOutline .outline-link.active {
+  color: var(--ti-accent);
+}
+
+.VPDocAsideOutline .outline-marker {
+  background-color: var(--ti-accent);
+}
+
+.VPDocFooter .pager-link {
+  border-color: var(--ti-rule);
+  border-radius: var(--ti-radius);
+  transition:
+    border-color var(--ti-fast),
+    background-color var(--ti-fast);
+}
+
+.VPDocFooter .pager-link:hover {
+  border-color: var(--ti-accent);
+  background: var(--ti-paper);
+}
+
+.VPDocFooter .pager-link .title {
+  font-family: var(--ti-font-serif);
+  font-weight: 400;
+  font-size: 17px;
+  color: var(--ti-ink);
+}
+
+/* ---------- CJK typography ----------
+   Korean wraps between words, not syllables. `overflow-wrap: break-word`
+   (not `anywhere`) keeps the min-content width of table columns at the
+   longest word, so cells never split mid-word. Chinese uses strict
+   line-breaking so punctuation never starts a line. */
+
+:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+:lang(zh) {
+  line-break: strict;
+  overflow-wrap: break-word;
+}
+
+/* Korean and Chinese headings use the system serif; Latin tracking is off. */
+:lang(ko) .vp-doc h1,
+:lang(ko) .vp-doc h2 {
+  font-family: var(--ti-font-serif-ko);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+:lang(zh) .vp-doc h1,
+:lang(zh) .vp-doc h2 {
+  font-family: var(--ti-font-serif-zh);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+:lang(ko) .vp-doc h3,
+:lang(zh) .vp-doc h3 {
+  letter-spacing: 0;
+}
+
+/* Short code tokens in tables stay whole, and every column keeps a readable
+   measure; on narrow screens the table scrolls sideways instead of
+   squeezing prose cells into one-word lines. */
+.vp-doc td code,
+.vp-doc th code {
+  white-space: nowrap;
+}
+
+.vp-doc th,
+.vp-doc td {
+  min-width: 8em;
+}
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  text-wrap: balance;
+}
+
+/* ---------- Motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
