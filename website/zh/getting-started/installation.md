@@ -24,13 +24,13 @@
    cp launchd/com.chuseok22.transcribe-inbox.plist ~/Library/LaunchAgents/
    launchctl load ~/Library/LaunchAgents/com.chuseok22.transcribe-inbox.plist
    ```
-5. 确认守护进程确实在运行。复制了 plist 不代表进程已经启动。plist 中只要有一个路径写错，进程就无法启动，launchd 会在不留日志的情况下失败。
+5. 确认守护进程确实在运行。复制了 plist 不代表进程已经启动。如果 `ProgramArguments` 中的 `uv` 路径或项目路径写错，进程就无法启动，launchd 会在不留日志的情况下失败。`whisper-cli` 或模型路径写错时，守护进程仍会启动，但任务会以 FAILED 结束，错误会记录在日志和数据库中。
    ```sh
    launchctl list | grep transcribe-inbox
    ```
-   第一列是 PID 表示正在运行，是 `-` 表示没有运行。第二列是上一次的退出码。如果没有运行，请检查两个日志文件。不过，如果是二进制路径错误这类在 launchd 阶段就启动失败的情况，两个日志都是空的，因为 Python 进程没有启动，无法写日志。
+   第一列是 PID 表示正在运行，是 `-` 表示没有运行。第二列是上一次的退出码。如果没有运行，请检查两个日志文件。不过，如果是 `uv` 路径错误这类在 launchd 阶段就启动失败的情况，两个日志都是空的，因为 Python 进程没有启动，无法写日志。
    ```sh
    cat ~/Library/Logs/transcribe-inbox.log
    cat ~/Library/Logs/transcribe-inbox.error.log
    ```
-   如果两个日志都是空的，守护进程又没有运行，最可能的原因是 plist 中填写的某个绝对路径（`uv`、`whisper-cli`、模型文件等）有误。请用 `which` 或 `ls` 逐一检查路径。修改 plist 后，需要先执行 `launchctl unload`，再执行 `launchctl load`。只覆盖文件不会生效。
+   如果两个日志都是空的，守护进程又没有运行，最可能的原因是 `ProgramArguments` 中填写的某个绝对路径（`uv` 或项目路径）有误。请用 `which` 或 `ls` 逐一检查路径。修改 plist 后，需要先执行 `launchctl unload`，再执行 `launchctl load`。只覆盖文件不会生效。`whisper-cli` 或模型路径错误不会让日志变空，而是表现为 FAILED 任务，见[故障排查](/zh/help/troubleshooting)。

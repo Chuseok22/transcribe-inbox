@@ -31,3 +31,5 @@
    complete") and the body is `<카테고리> · <원본 이름>`
    (`<category> · <original name>`).
 4. The job status in the DB changes to `COMPLETED`.
+
+In practice, `COMPLETED` is recorded right after the transcript folder is saved, before the notification and the archive. If either of those fails, the job stays `COMPLETED` and the transcript is already saved. The original then stays in the inbox and is archived at the next daemon start.

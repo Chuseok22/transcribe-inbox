@@ -31,21 +31,24 @@
    launchctl load ~/Library/LaunchAgents/com.chuseok22.transcribe-inbox.plist
    ```
 5. 데몬이 실제로 실행 중인지 확인합니다. plist를 복사했다고 프로세스가 떠 있는
-   것은 아닙니다. plist 안의 경로가 하나라도 틀리면 프로세스가 시작되지 못해,
-   launchd는 로그를 남기지 않고 조용히 실패합니다.
+   것은 아닙니다. `ProgramArguments`의 `uv` 경로나 프로젝트 경로가 틀리면
+   프로세스가 시작되지 못해 launchd는 로그를 남기지 않고 조용히 실패합니다.
+   `whisper-cli`나 모델 경로가 틀린 경우에는 데몬은 시작되고, 작업이 FAILED로
+   끝나며 오류가 로그와 DB에 남습니다.
    ```sh
    launchctl list | grep transcribe-inbox
    ```
    첫 번째 컬럼이 PID면 실행 중이고, `-`면 실행 중이 아닙니다. 두 번째 컬럼은
    마지막 종료 코드입니다. 실행 중이 아니면 두 로그 파일을 모두 확인하세요.
-   다만 잘못된 바이너리 경로처럼 launchd 단계에서 실행에 실패하면 두 로그는
+   다만 잘못된 `uv` 경로처럼 launchd 단계에서 실행에 실패하면 두 로그는
    비어 있습니다. Python 프로세스가 시작되지 않아 로그를 쓰지 못하기 때문입니다.
    ```sh
    cat ~/Library/Logs/transcribe-inbox.log
    cat ~/Library/Logs/transcribe-inbox.error.log
    ```
-   두 로그가 모두 비어 있는데 데몬이 실행되지 않는다면, plist에 적은 절대
-   경로(`uv`, `whisper-cli`, 모델 파일 등) 중 하나가 틀렸을 가능성이 가장
-   큽니다. `which`나 `ls`로 경로를 하나씩 확인하세요. plist를 수정한 뒤에는
+   두 로그가 모두 비어 있는데 데몬이 실행되지 않는다면, `ProgramArguments`에 적은
+   절대 경로(`uv`, 프로젝트 경로) 중 하나가 틀렸을 가능성이 가장 큽니다. `which`나 `ls`로 경로를 하나씩 확인하세요. plist를 수정한 뒤에는
    `launchctl unload`를 실행하고 다시 `launchctl load`를 해야 합니다. 파일만
-   덮어써서는 반영되지 않습니다.
+   덮어써서는 반영되지 않습니다. `whisper-cli`나 모델 경로 오류는 로그가 비는
+   대신 FAILED 작업으로 나타납니다. [문제 해결](/ko/help/troubleshooting)을
+   참고하세요.

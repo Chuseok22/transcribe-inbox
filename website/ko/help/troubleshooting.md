@@ -10,9 +10,10 @@ launchctl list | grep transcribe-inbox
 
 첫 번째 컬럼이 PID면 실행 중이고, `-`면 실행 중이 아닙니다. 두 번째 컬럼은 마지막 종료 코드입니다.
 
-- 잘못된 바이너리 경로처럼 launchd 단계에서 실행에 실패하면 `~/Library/Logs/transcribe-inbox.log`와 `~/Library/Logs/transcribe-inbox.error.log`가 모두 비어 있습니다. Python 프로세스가 시작되지 않아 로그를 쓰지 못하기 때문입니다.
-- 두 로그가 모두 비어 있는데 데몬이 실행되지 않는다면, plist에 적은 절대 경로(`uv`, `whisper-cli`, 모델 파일 등) 중 하나가 틀렸을 가능성이 가장 큽니다. `which`나 `ls`로 하나씩 확인하세요.
+- 잘못된 `uv` 경로처럼 launchd 단계에서 실행에 실패하면 `~/Library/Logs/transcribe-inbox.log`와 `~/Library/Logs/transcribe-inbox.error.log`가 모두 비어 있습니다. Python 프로세스가 시작되지 않아 로그를 쓰지 못하기 때문입니다.
+- 두 로그가 모두 비어 있는데 데몬이 실행되지 않는다면, `ProgramArguments`에 적은 절대 경로(`uv`, 프로젝트 경로) 중 하나가 틀렸을 가능성이 가장 큽니다. `which`나 `ls`로 하나씩 확인하세요.
 - plist를 수정한 뒤에는 `launchctl unload` 후 `launchctl load`를 다시 실행해야 합니다. 파일만 덮어써서는 반영되지 않습니다.
+- `whisper-cli`나 모델 경로가 틀려도 데몬은 시작됩니다. 데몬은 실행 중이고 작업이 `FAILED`가 되며, 오류는 로그와 DB에 기록된 에러 메시지에서 확인합니다.
 
 설치 절차와 각 값은 [설치 및 설정](/ko/getting-started/installation)과 [설정](/ko/reference/configuration)을 참고하세요.
 
@@ -22,4 +23,4 @@ launchctl list | grep transcribe-inbox
 
 ## 작업이 FAILED가 됐을 때
 
-작업이 `FAILED`가 되면 에러 메시지가 DB에 기록됩니다. 원본 파일은 인박스에 그대로 남고, 전사 결과는 저장되지 않습니다. 실패한 작업은 데몬을 재시작해도 자동으로 재시도하지 않으므로, 원인을 해결한 뒤 `retry` 명령으로 직접 재시도하세요. 상태 확인 쿼리와 재시도 방법은 [사용법](/ko/guide/usage)에 있습니다.
+작업이 `FAILED`가 되면 에러 메시지가 DB에 기록됩니다. 원본 파일은 인박스에 그대로 남고, 전사 결과는 보통 저장되지 않습니다. 저장은 끝났지만 완료 기록만 실패한 드문 경우에는 출력 폴더에 이미 있을 수 있습니다. 실패한 작업은 데몬을 재시작해도 자동으로 재시도하지 않으므로, 원인을 해결한 뒤 `retry` 명령으로 직접 재시도하세요. 상태 확인 쿼리와 재시도 방법은 [사용법](/ko/guide/usage)에 있습니다.

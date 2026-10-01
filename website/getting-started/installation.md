@@ -34,22 +34,25 @@
    launchctl load ~/Library/LaunchAgents/com.chuseok22.transcribe-inbox.plist
    ```
 5. Check that the daemon is running. Copying the plist does not mean the process
-   is up. If any path in the plist is wrong, the process cannot start and launchd
-   fails without writing a log.
+   is up. If the `uv` path or the project path in `ProgramArguments` is wrong, the
+   process cannot start and launchd fails without writing a log. A wrong
+   `whisper-cli` or model path does not stop the daemon from starting. The job
+   ends as FAILED instead, with the error in the log and the database.
    ```sh
    launchctl list | grep transcribe-inbox
    ```
    A PID in the first column means it is running. `-` means it is not. The second
    column is the last exit code. If it is not running, check both log files. When
    launchd itself fails to start the process, for example because of a wrong
-   binary path, both logs are empty, because the Python process never started and
+   `uv` path, both logs are empty, because the Python process never started and
    could not write anything.
    ```sh
    cat ~/Library/Logs/transcribe-inbox.log
    cat ~/Library/Logs/transcribe-inbox.error.log
    ```
    If both logs are empty and the daemon is not running, the most likely cause is
-   a wrong absolute path in the plist (`uv`, `whisper-cli`, the model files and so
-   on). Check each path with `which` or `ls`. After you edit the plist, run
+   a wrong absolute path in `ProgramArguments` (`uv` or the project path). Check
+   each path with `which` or `ls`. After you edit the plist, run
    `launchctl unload` and then `launchctl load` again. Overwriting the file alone
-   does not apply the change.
+   does not apply the change. A wrong `whisper-cli` or model path shows up as
+   FAILED jobs instead, see [Troubleshooting](/help/troubleshooting).

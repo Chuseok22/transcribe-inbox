@@ -5,7 +5,7 @@
 ```
 ~/Transcribe/inbox/<카테고리>/[모드]/... 에 파일을 넣으면
   → watchdog이 파일을 감지하고, 크기 증가가 멈출 때까지 대기(안정화 확인)
-  → PostgreSQL에 작업(job)으로 등록 (같은 내용의 파일은 중복 등록되지 않음)
+  → PostgreSQL에 작업(job)으로 등록 (대기·처리 중·완료 상태인 같은 내용은 중복 등록되지 않음)
   → 워커가 작업을 하나씩 순차적으로 가져감 (GPU 작업 동시 실행 없음)
   → ffmpeg가 오디오를 16kHz mono WAV로 추출/리샘플링
     (비디오 컨테이너도 처리함. "사전 준비물" 페이지의 "지원하는 입력 포맷" 참고;
@@ -23,7 +23,7 @@ inbox) and `[모드]` is the optional mode folder. The steps:
 1. You put a file into the inbox.
 2. watchdog detects it and waits until its size stops growing.
 3. The file is registered as a job in PostgreSQL. A file with the same content is
-   not queued twice.
+   not queued again while a job for it is `PENDING`, `PROCESSING` or `COMPLETED`.
 4. The worker takes jobs one at a time. GPU work does not run in parallel.
 5. ffmpeg extracts and resamples the audio to 16kHz mono WAV. This works for
    video containers too (see "Supported input formats" in
@@ -57,15 +57,18 @@ becomes a job depends on the mode.
   by one. After adding all tracks, wait about a minute.
 
 Jobs run one at a time, in order. GPU work does not run in parallel. Adding a
-file with the same content again does not register it twice. Files are matched
-by a hash of their content, not by name, so a renamed copy is also not
-registered again.
+file with the same content again does not register it twice if a job for that
+content is `PENDING`, `PROCESSING` or `COMPLETED`. Files are matched by a hash of
+their content, not by name, so a renamed copy is also not registered again. If
+the earlier job is `FAILED`, the file is registered again when you drop it into
+the inbox again.
 
 ## When a job fails
 
 - The job status changes to `FAILED` and the error message is recorded in the DB.
-- The original file stays in the inbox. It is not archived or deleted, and no
-  transcript is saved.
+- The original file stays in the inbox. It is not archived or deleted. A
+  transcript is usually not saved, but it can already exist in the output folder
+  if saving finished and only recording completion failed.
 - A macOS notification appears. The title is `전사 실패` ("Transcription
   failed") and the body is `<카테고리> · <원본 이름>: <에러 메시지>`
   (`<category> · <original name>: <error message>`).
