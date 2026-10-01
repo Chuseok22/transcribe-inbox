@@ -1,7 +1,7 @@
 # transcribe-inbox
 
 <!-- AUTO-VERSION-SECTION: DO NOT EDIT MANUALLY -->
-## Latest Version : v0.3.0 (2026-09-26)
+## Latest Version : v0.3.1 (2026-10-01)
 
 **English** | [한국어](README.ko.md) | [简体中文](README.zh-CN.md)
 
