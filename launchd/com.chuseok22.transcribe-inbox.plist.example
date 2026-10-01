@@ -38,6 +38,15 @@
         <string>mlx-community/whisper-large-v3-mlx</string>
         <key>HUGGINGFACE_TOKEN</key>
         <string>REPLACE_ME</string>
+        <!--
+        Optional path overrides (defaults shown). Uncomment to change.
+        <key>TRANSCRIBE_INBOX_ROOT</key>
+        <string>/Users/YOUR_USERNAME/Transcribe/inbox</string>
+        <key>TRANSCRIBE_ARCHIVE_ROOT</key>
+        <string>/Users/YOUR_USERNAME/Transcribe/archive</string>
+        <key>OBSIDIAN_TRANSCRIPTS_ROOT</key>
+        <string>/Users/YOUR_USERNAME/Obsidian/second-brain/Transcripts</string>
+        -->
     </dict>
 </dict>
 </plist>
