@@ -1,25 +1,25 @@
 # Troubleshooting
 
-## The daemon won't start
+## The daemon does not start
 
-This is the case where you copied the plist to `~/Library/LaunchAgents/` and ran `launchctl load`, but the process is still not running. First check whether it is running:
+You copied the plist to `~/Library/LaunchAgents/` and ran `launchctl load`, but no process is running. First check whether it is running.
 
 ```sh
 launchctl list | grep transcribe-inbox
 ```
 
-If the first column is a PID, it is running; if it is `-`, it is not running (the second column is the last exit code).
+A PID in the first column means it is running. `-` means it is not. The second column is the last exit code.
 
-- When launchd fails to launch (a wrong binary path, etc.), **both** `~/Library/Logs/transcribe-inbox.log` and `~/Library/Logs/transcribe-inbox.error.log` are **empty**. This is because the Python process itself could not start and so had nothing to write.
-- If both logs are empty and the daemon is not running, the most likely cause is a wrong absolute path in the plist (`uv`, `whisper-cli`, the model files, etc.). Re-check them one by one with `which`/`ls`.
-- After editing the plist, you must run `launchctl unload` and then `launchctl load` again. Just overwriting the file does not re-apply it.
+- When launchd fails to start the process, for example because of a wrong binary path, both `~/Library/Logs/transcribe-inbox.log` and `~/Library/Logs/transcribe-inbox.error.log` are empty. The Python process never started, so it could not write a log.
+- If both logs are empty and the daemon is not running, the most likely cause is a wrong absolute path in the plist (`uv`, `whisper-cli`, the model files and so on). Check each one with `which` or `ls`.
+- After you edit the plist, run `launchctl unload` and then `launchctl load` again. Overwriting the file alone does not apply the change.
 
-For the detailed installation steps and each value, see [Installation](/getting-started/installation) and [Configuration](/reference/configuration).
+For the install steps and each value, see [Installation](/getting-started/installation) and [Configuration](/reference/configuration).
 
-## The session becomes FAILED
+## A session ends up FAILED
 
-A common reason an `asr-multitrack` session becomes `FAILED` is that the session folder contains files other than the per-speaker audio (metadata such as `.txt` or `.dat`). Every non-hidden file in the session folder is registered as a track and fails when audio decoding is attempted. Keep only per-speaker audio files directly under the session folder. For details, including the caveat about tracks whose start times are misaligned, see [Modes](/guide/modes).
+A common reason an `asr-multitrack` session ends up `FAILED` is a file in the session folder that is not per-speaker audio, such as `.txt` or `.dat` metadata. Every file in the session folder except hidden files is registered as a track, so decoding such a file as audio fails. Keep only per-speaker audio files directly under the session folder. [Modes](/guide/modes) has the details, including what to watch for when track start times differ.
 
-## A job became FAILED
+## A job ends up FAILED
 
-When a job becomes `FAILED`, the error message is recorded in the DB, the original file stays in the inbox, and no transcript is published. A failed job is not retried automatically even when you restart the daemon, so after fixing the cause you must try again yourself with the `retry` command. For the status-check query and how to retry, see [Usage](/guide/usage).
+When a job becomes `FAILED`, the error message is recorded in the DB. The original file stays in the inbox and no transcript is saved. Failed jobs are not retried automatically, even after a daemon restart. Fix the cause, then retry with the `retry` command. [Usage](/guide/usage) has the status queries and the retry steps.

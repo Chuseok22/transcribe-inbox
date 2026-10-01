@@ -1,8 +1,10 @@
 # Inbox layout
 
-The only thing watched is `~/Transcribe/inbox/`. **How deep under this folder you place a file** directly determines its category and mode — there is no config file and no filename convention.
+The daemon watches one folder, `~/Transcribe/inbox/`. The depth at which you put a
+file under it sets the category and the mode. There is no separate config file
+and no file naming rule.
 
-All you need to look at is the number of path components counted from `~/Transcribe/inbox/`:
+Count the path components from `~/Transcribe/inbox/`.
 
 | Path relative to the inbox | Category | Mode | Unit of work |
 |---|---|---|---|
@@ -12,16 +14,32 @@ All you need to look at is the number of path components counted from `~/Transcr
 | `<카테고리>/diarize/<파일>` | `<카테고리>` | `diarize` | that file |
 | `<카테고리>/asr-multitrack/<세션>/<파일>` | `<카테고리>` | `asr-multitrack` | the whole `<세션>` folder |
 
-(Here `<파일>` is the file, `<카테고리>` the category folder, and `<세션>` the session folder.)
+In the table, `<파일>` is the file, `<카테고리>` the category folder and `<세션>`
+the session folder.
 
-In words, the rules come down to four lines:
+The rules in detail:
 
-- The **category** is the name of the first folder directly under the inbox. The name is free-form (Korean names such as `강의` (lectures), `회의` (meetings) and `캡스톤` (capstone) can be used as-is), and you don't need to register a new category anywhere to use it — just create the folder.
-- Dropping a file at the inbox root **without a category folder** also works normally; the category becomes `미분류` and the mode `asr`. The transcript goes under `~/Obsidian/second-brain/Transcripts/미분류/`, and the original goes to `~/Transcribe/archive/미분류/asr/`.
-- The **mode folder** is the second folder and can be omitted. If omitted, it is `asr`. The name must match exactly one of `asr`, `asr-multitrack`, or `diarize` — names that differ in case or are variants, such as `ASR` or `multitrack`, are not recognized as a mode.
-- Only `asr-multitrack` goes one level deeper. Under the mode folder you must put exactly one **session folder**, and put the per-speaker files directly inside it. A session folder is **a folder that groups the per-speaker files belonging to a single meeting**, and you can name it freely (`2026-09-08`, `주간회의` (weekly meeting), and so on). In this case the unit of work is the whole session folder, not the individual files.
+- The category is the name of the first folder directly under the inbox. You can
+  name it anything, including Korean names such as `강의`, `회의` or `캡스톤`
+  (lectures, meetings, capstone). To add a category, create the folder. There is
+  nothing to register.
+- A file placed at the inbox root, with no category folder, is processed too. Its
+  category is `미분류` and its mode is `asr`. The transcript is saved under
+  `~/Obsidian/second-brain/Transcripts/미분류/`, and the original moves to
+  `~/Transcribe/archive/미분류/asr/`.
+- The mode folder is the second folder and is optional. Without it, the mode is
+  `asr`. The folder name must match `asr`, `asr-multitrack` or `diarize`
+  character for character. A name with different case such as `ASR`, or a short
+  form such as `multitrack`, is not treated as a mode.
+- `asr-multitrack` goes one level deeper. Under the mode folder, create one
+  session folder and put the per-speaker files directly in it. A **session
+  folder** groups the per-speaker files of one meeting. Name it as you like, for
+  example `2026-09-08` or `주간회의` (weekly meeting). In this mode the whole
+  session folder is one job.
 
-Any path that doesn't fit one of the five forms above is treated as an **ambiguous path**: it is skipped and only logged — it is never processed by guessing. Cases that actually hit this:
+A path that does not match one of the five forms above is treated as an ambiguous
+path. It is skipped and logged. The daemon does not guess what you meant. These
+paths are ambiguous:
 
 ```
 ~/Transcribe/inbox/강의/3장/2주차.m4a                              # 두 번째 폴더가 모드 이름이 아님
@@ -29,6 +47,14 @@ Any path that doesn't fit one of the five forms above is treated as an **ambiguo
 ~/Transcribe/inbox/회의/asr-multitrack/2026-09-08/원본/김철수.m4a  # 세션 폴더 아래에 또 폴더
 ```
 
-(In order: the second folder is not a mode name; a file placed directly without a session folder; another folder under the session folder.)
+The comments, in order: the second folder is not a mode name; the file sits
+directly in the mode folder with no session folder; there is another folder under
+the session folder.
 
-The mode is determined solely by the folder structure — there is no way to set a permanent default such as "this category is always diarize"; every file's mode is decided on the spot by which folder path it was placed in. `~/Transcribe/archive/` (where originals are kept) and any other folder outside `~/Transcribe/inbox/` are never watched, even if they are siblings — you can freely store anything else there, including downloaded models (such as `~/Transcribe/model/`). Hidden files whose names start with `.` are ignored everywhere.
+Only the folder structure sets the mode. You cannot set a default such as "this
+category is always diarize". Each file's mode comes from the path it is in.
+
+The daemon does not watch any folder outside `~/Transcribe/inbox/`, including
+sibling folders such as `~/Transcribe/archive/` (where originals are kept). You
+can keep other files there, such as downloaded models (`~/Transcribe/model/` and
+so on). Hidden files, whose names start with `.`, are ignored wherever they are.
