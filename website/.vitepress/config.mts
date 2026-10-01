@@ -72,6 +72,9 @@ export default defineConfig({
   base: '/transcribe-inbox/',
   cleanUrls: true,
   lastUpdated: true,
+  // Marks JS as available before first paint, so the landing demo can hide
+  // the parts it is about to reveal without flashing them first.
+  head: [['script', {}, "document.documentElement.classList.add('ti-js')"]],
   themeConfig: {
     socialLinks: [{ icon: 'github', link: 'https://github.com/Chuseok22/transcribe-inbox' }],
     search: { provider: 'local' },
@@ -90,7 +93,7 @@ export default defineConfig({
       label: '한국어',
       lang: 'ko',
       link: '/ko/',
-      description: '폴더에 녹음 파일을 넣으면, Apple Silicon에서 로컬로 전사해 노트에 발행합니다.',
+      description: '폴더에 녹음 파일을 넣으면 Apple Silicon Mac에서 로컬로 전사해 노트 폴더에 저장합니다.',
       themeConfig: {
         nav: [{ text: '가이드', link: '/ko/getting-started/installation' }],
         sidebar: sidebarFor('/ko', ko),
@@ -100,7 +103,7 @@ export default defineConfig({
       label: '简体中文',
       lang: 'zh-CN',
       link: '/zh/',
-      description: '把录音放进文件夹，即可在 Apple Silicon 上本地转写并发布到你的笔记。',
+      description: '把录音放进文件夹，在 Apple Silicon Mac 上本地转写，并保存到你的笔记文件夹。',
       themeConfig: {
         nav: [{ text: '指南', link: '/zh/getting-started/installation' }],
         sidebar: sidebarFor('/zh', zh),

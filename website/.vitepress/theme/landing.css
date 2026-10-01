@@ -1,0 +1,1119 @@
+/* Landing page (Landing.vue). Tokens come from custom.css. */
+
+.ti-landing,
+.ti-footer {
+  --ti-text-h1: clamp(2.35rem, 1.5rem + 2.6vw, 3.45rem);
+  --ti-text-h2: clamp(1.8rem, 1.3rem + 1.5vw, 2.5rem);
+  --ti-text-lede: clamp(1.06rem, 1rem + 0.3vw, 1.2rem);
+  font-family: var(--ti-font-sans);
+  color: var(--ti-ink);
+}
+
+.ti-landing h1,
+.ti-landing h2,
+.ti-landing h3 {
+  margin: 0;
+  text-wrap: balance;
+}
+
+.ti-landing p {
+  margin: 0;
+}
+
+.ti-landing p,
+.ti-landing dd,
+.ti-landing li {
+  text-wrap: pretty;
+}
+
+.ti-landing ol,
+.ti-landing ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ti-landing code,
+.ti-landing pre {
+  font-family: var(--ti-font-mono);
+}
+
+.ti-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--ti-gutter);
+}
+
+/* Align the nav bar with the landing column. */
+@media (min-width: 960px) {
+  .VPNavBar.home .container {
+    max-width: calc(1200px - 2 * var(--ti-gutter));
+  }
+}
+
+.ti-landing a:not(.ti-btn) {
+  color: var(--ti-accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ti-accent) 45%, transparent);
+  text-underline-offset: 3px;
+  transition:
+    color var(--ti-fast),
+    text-decoration-color var(--ti-fast);
+}
+
+.ti-landing a:not(.ti-btn):hover {
+  color: var(--ti-accent-hover);
+  text-decoration-color: currentColor;
+}
+
+/* Inline code inside running text. */
+.ti-landing p code {
+  font-size: 0.88em;
+  color: var(--ti-ink);
+  background: var(--ti-surface);
+  border: 1px solid var(--ti-rule);
+  padding: 1px 5px;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Hero ---------- */
+
+.ti-hero {
+  padding: clamp(40px, 7vw, 104px) 0 clamp(56px, 7vw, 96px);
+}
+
+.ti-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: clamp(40px, 6vw, 88px);
+  align-items: center;
+}
+
+.ti-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px !important;
+  font-size: 13.5px;
+  color: var(--ti-muted);
+}
+
+.ti-eyebrow::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ti-ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ti-ok) 18%, transparent);
+}
+
+.ti-title {
+  font-family: var(--ti-font-serif);
+  font-weight: 400;
+  font-size: var(--ti-text-h1);
+  font-optical-sizing: auto;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+}
+
+.ti-title-line {
+  display: block;
+}
+
+.ti-title-line + .ti-title-line {
+  color: var(--ti-muted);
+  font-style: italic;
+}
+
+.ti-nowrap {
+  white-space: nowrap;
+}
+
+.ti-lede {
+  margin-top: 24px !important;
+  max-width: 34em;
+  font-size: var(--ti-text-lede);
+  line-height: 1.6;
+  color: var(--ti-muted);
+}
+
+.ti-lede code {
+  font-size: 0.86em !important;
+}
+
+.ti-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.ti-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  font: 500 15px/1 var(--ti-font-sans);
+  text-decoration: none;
+  transition:
+    transform var(--ti-fast) var(--ti-ease),
+    background-color var(--ti-fast),
+    border-color var(--ti-fast);
+}
+
+.ti-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.ti-btn-primary {
+  background: var(--ti-accent);
+  color: var(--ti-accent-ink);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    0 6px 16px -8px color-mix(in srgb, var(--ti-accent) 70%, transparent);
+}
+
+.ti-btn-primary:hover {
+  background: var(--ti-accent-hover);
+}
+
+.ti-btn-ghost {
+  background: var(--ti-paper);
+  border-color: var(--ti-rule);
+  color: var(--ti-ink);
+}
+
+.ti-btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--ti-ink) 35%, var(--ti-rule));
+}
+
+/* Install command with a Copy button. */
+.ti-install {
+  margin-top: 28px;
+  max-width: 520px;
+}
+
+.ti-install-box {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--ti-rule);
+  border-radius: var(--ti-radius);
+  background: var(--ti-surface);
+}
+
+.ti-install-box code {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.ti-install-box code::-webkit-scrollbar {
+  display: none;
+}
+
+.ti-prompt {
+  margin-right: 10px;
+  color: var(--ti-muted);
+  user-select: none;
+}
+
+.ti-copy {
+  flex: none;
+  min-width: 76px;
+  padding: 0 16px;
+  border: 0;
+  border-left: 1px solid var(--ti-rule);
+  background: transparent;
+  color: var(--ti-muted);
+  font: 500 13px/1 var(--ti-font-sans);
+  cursor: pointer;
+  transition:
+    color var(--ti-fast),
+    background-color var(--ti-fast);
+}
+
+.ti-copy:hover {
+  color: var(--ti-ink);
+  background: var(--ti-surface-2);
+}
+
+.ti-copy:active {
+  background: color-mix(in srgb, var(--ti-surface-2) 70%, var(--ti-rule));
+}
+
+.ti-copy:focus-visible {
+  outline-offset: -3px;
+}
+
+.ti-copy[data-state='done'] {
+  color: var(--ti-ok);
+}
+
+.ti-copy[data-state='failed'] {
+  color: var(--ti-stamp);
+}
+
+.ti-platform {
+  margin-top: 12px !important;
+  font-size: 13px;
+  color: var(--ti-muted);
+}
+
+/* Markdown notices passed in from index.md, set as small print. */
+.ti-notices:empty {
+  display: none;
+}
+
+.ti-notices {
+  margin-top: 20px;
+  max-width: 520px;
+  display: grid;
+  gap: 8px;
+}
+
+.ti-notices .custom-block {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ti-notices .custom-block p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.ti-notices .custom-block .custom-block-title {
+  display: inline;
+  margin-right: 6px;
+  font-size: 13px;
+}
+
+/* An untitled ::: info renders VitePress's English "INFO" label; drop it. */
+.ti-notices .custom-block.info .custom-block-title {
+  display: none;
+}
+
+.ti-notices .custom-block .custom-block-title + p {
+  display: inline;
+}
+
+/* ---------- Signature card ---------- */
+
+.ti-demo {
+  margin: 0;
+}
+
+.ti-demo-stack {
+  position: relative;
+}
+
+.ti-demo-stack::before {
+  content: '';
+  position: absolute;
+  inset: 14px -14px -14px 14px;
+  z-index: 0;
+  border: 1px solid var(--ti-rule);
+  border-radius: var(--ti-radius-lg);
+  background: var(--ti-surface);
+}
+
+.ti-card {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 1px solid var(--ti-rule);
+  border-radius: var(--ti-radius-lg);
+  background: var(--ti-paper);
+  box-shadow: var(--ti-shadow);
+}
+
+.ti-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--ti-rule);
+  font-size: 12.5px;
+  color: var(--ti-muted);
+}
+
+.ti-dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.ti-dots i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ti-surface-2);
+}
+
+.ti-tag {
+  padding: 3px 9px;
+  border: 1px solid var(--ti-rule);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--ti-muted);
+}
+
+.ti-drop {
+  padding: 20px 20px 18px;
+  background: var(--ti-surface);
+}
+
+.ti-path,
+.ti-note-path {
+  font-family: var(--ti-font-mono);
+  font-size: 12.5px;
+  color: var(--ti-muted);
+  overflow-wrap: anywhere;
+}
+
+.ti-path b {
+  color: var(--ti-ink);
+  font-weight: 500;
+}
+
+.ti-file {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--ti-rule);
+  border-radius: var(--ti-radius);
+  background: var(--ti-paper);
+}
+
+.ti-file-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--ti-accent-soft);
+  color: var(--ti-accent);
+}
+
+.ti-file-body {
+  min-width: 0;
+}
+
+.ti-file-name {
+  font-family: var(--ti-font-mono);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.ti-wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  margin-top: 4px;
+}
+
+.ti-wave i {
+  flex: 1;
+  max-width: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ti-accent) 55%, var(--ti-rule));
+  transform-origin: center;
+}
+
+.ti-file-meta {
+  font-size: 12px;
+  color: var(--ti-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ti-progress {
+  height: 3px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--ti-rule);
+}
+
+.ti-progress i {
+  display: block;
+  height: 100%;
+  background: var(--ti-accent);
+  transform-origin: left;
+}
+
+.ti-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 11px 20px;
+  border-top: 1px dashed var(--ti-rule);
+  border-bottom: 1px dashed var(--ti-rule);
+  font-family: var(--ti-font-mono);
+  font-size: 12.5px;
+  color: var(--ti-muted);
+}
+
+.ti-pip {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ti-accent);
+}
+
+.is-done .ti-pip {
+  background: var(--ti-ok);
+}
+
+.ti-status-done {
+  color: var(--ti-ok);
+}
+
+.ti-ellipsis i {
+  display: inline-block;
+  font-style: normal;
+}
+
+.ti-note {
+  padding: 18px 20px 20px;
+}
+
+.ti-note-title {
+  margin: 12px 0 10px;
+  font-family: var(--ti-font-serif);
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.ti-lines {
+  font-size: 14px;
+  line-height: 1.65;
+  word-break: keep-all;
+}
+
+.ti-lines li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 5px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ti-rule) 60%, transparent);
+}
+
+.ti-lines li:first-child {
+  border-top: 0;
+}
+
+.ti-ts {
+  padding-top: 2px;
+  font-family: var(--ti-font-mono);
+  font-size: 12px;
+  color: var(--ti-accent);
+}
+
+.ti-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 14px;
+}
+
+.ti-files span {
+  padding: 3px 7px;
+  border: 1px solid var(--ti-rule);
+  border-radius: 6px;
+  background: var(--ti-surface);
+  font-family: var(--ti-font-mono);
+  font-size: 11px;
+  color: var(--ti-muted);
+}
+
+.ti-files span:nth-child(2) {
+  color: var(--ti-ink);
+  border-color: color-mix(in srgb, var(--ti-accent) 40%, var(--ti-rule));
+}
+
+.ti-caption {
+  margin-top: 26px;
+  padding-left: 2px;
+  font-size: 12.5px;
+  color: var(--ti-muted);
+}
+
+/* Card motion: only with JS and without a reduced-motion preference. */
+@media (prefers-reduced-motion: no-preference) {
+  .ti-js .ti-demo-stack:not(.is-done) .ti-progress i {
+    transform: scaleX(0);
+  }
+
+  .ti-js .ti-demo-stack.is-playing .ti-progress i {
+    transform: scaleX(1);
+    transition: transform 1.6s var(--ti-ease);
+  }
+
+  .ti-js .ti-demo-stack .ti-lines li,
+  .ti-js .ti-demo-stack .ti-files {
+    transition:
+      opacity 0.5s var(--ti-ease),
+      transform 0.5s var(--ti-ease);
+  }
+
+  .ti-js .ti-demo-stack .ti-lines li:not(.is-in),
+  .ti-js .ti-demo-stack .ti-files:not(.is-in) {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  .ti-demo-stack.is-playing .ti-pip {
+    animation: ti-pulse 1.2s ease-in-out infinite;
+  }
+
+  .ti-demo-stack.is-playing .ti-ellipsis i {
+    animation: ti-blink 1.2s infinite;
+  }
+
+  .ti-demo-stack.is-playing .ti-ellipsis i:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .ti-demo-stack.is-playing .ti-ellipsis i:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  .ti-demo-stack.is-playing .ti-wave i {
+    animation: ti-bar 1.4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes ti-pulse {
+  50% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes ti-blink {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@keyframes ti-bar {
+  from {
+    transform: scaleY(0.55);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* ---------- Sections ---------- */
+
+.ti-block {
+  padding: clamp(64px, 9vw, 120px) 0;
+  border-top: 1px solid var(--ti-rule);
+}
+
+.ti-section-head {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: 32px;
+  align-items: end;
+  margin-bottom: clamp(32px, 5vw, 56px);
+}
+
+.ti-landing h2 {
+  font-family: var(--ti-font-serif);
+  font-weight: 400;
+  font-size: var(--ti-text-h2);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+}
+
+.ti-section-head p {
+  max-width: 38em;
+  color: var(--ti-muted);
+  line-height: 1.6;
+}
+
+/* Value points: an editorial numbered list. */
+.ti-values {
+  counter-reset: ti-value;
+}
+
+.ti-values li {
+  counter-increment: ti-value;
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 7fr);
+  gap: 32px;
+  align-items: baseline;
+  padding: 30px 0;
+  border-top: 1px solid var(--ti-rule);
+}
+
+.ti-values li:last-child {
+  border-bottom: 1px solid var(--ti-rule);
+}
+
+.ti-values h3 {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  font-family: var(--ti-font-serif);
+  font-weight: 400;
+  font-size: clamp(1.5rem, 1.2rem + 0.9vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.ti-values h3::before {
+  content: counter(ti-value);
+  min-width: 1.4em;
+  font-family: var(--ti-font-mono);
+  font-size: 13px;
+  color: var(--ti-accent);
+}
+
+.ti-values p {
+  max-width: 36em;
+  font-size: 1.02rem;
+  line-height: 1.65;
+  color: var(--ti-muted);
+}
+
+/* How it works: four steps joined by a dashed path. */
+.ti-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ti-flow li {
+  padding-right: 24px;
+}
+
+.ti-flow-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.ti-flow-mark b {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--ti-accent);
+  border-radius: 50%;
+  background: var(--ti-bg);
+  color: var(--ti-accent);
+  font: 500 13px var(--ti-font-mono);
+}
+
+.ti-flow-mark::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--ti-rule) 0 6px, transparent 6px 10px);
+}
+
+.ti-flow li:last-child .ti-flow-mark::after {
+  display: none;
+}
+
+.ti-flow h3 {
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.ti-flow p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ti-muted);
+}
+
+.ti-flow-path {
+  display: block;
+  margin-top: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--ti-rule);
+  border-radius: 8px;
+  background: var(--ti-surface);
+  font-size: 12px;
+  color: var(--ti-ink);
+  overflow-wrap: anywhere;
+}
+
+.ti-modes {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 24px;
+  max-width: 760px;
+  margin: 40px 0 0;
+  font-size: 0.95rem;
+}
+
+.ti-modes dt {
+  font-family: var(--ti-font-mono);
+  font-size: 13px;
+  color: var(--ti-accent);
+}
+
+.ti-modes dd {
+  margin: 0;
+  color: var(--ti-muted);
+}
+
+/* Quick start: steps beside the commands. */
+.ti-qs {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(32px, 5vw, 72px);
+}
+
+.ti-qs-intro {
+  max-width: 30em;
+  margin: 16px 0 28px !important;
+  color: var(--ti-muted);
+}
+
+.ti-steps {
+  counter-reset: ti-step;
+}
+
+.ti-steps li {
+  counter-increment: ti-step;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid var(--ti-rule);
+}
+
+.ti-steps li:last-child {
+  border-bottom: 1px solid var(--ti-rule);
+}
+
+.ti-steps li::before {
+  content: counter(ti-step);
+  font: 500 13px/1.9 var(--ti-font-mono);
+  color: var(--ti-accent);
+}
+
+.ti-steps h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ti-steps p {
+  font-size: 0.94rem;
+  line-height: 1.6;
+  color: var(--ti-muted);
+}
+
+.ti-term {
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid var(--ti-rule);
+  border-radius: 14px;
+  background: var(--ti-surface);
+}
+
+.ti-term-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border-top: 1px solid var(--ti-rule);
+}
+
+.ti-term-row:first-child {
+  border-top: 0;
+}
+
+.ti-term-row pre {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ti-term-row pre .ti-prompt {
+  margin-right: 0;
+}
+
+.ti-term-row .ti-copy {
+  align-self: stretch;
+}
+
+.ti-term-foot {
+  padding: 12px 18px;
+  border-top: 1px solid var(--ti-rule);
+  font-size: 13px;
+  color: var(--ti-muted);
+}
+
+/* Privacy */
+.ti-privacy {
+  background: var(--ti-surface);
+}
+
+.ti-privacy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 4fr);
+  gap: clamp(32px, 6vw, 96px);
+  align-items: end;
+}
+
+.ti-landing h2.ti-privacy-label {
+  margin-bottom: 18px;
+  font: 600 14px/1.4 var(--ti-font-sans);
+  letter-spacing: 0;
+  color: var(--ti-ok);
+}
+
+.ti-privacy-statement {
+  font-family: var(--ti-font-serif);
+  font-size: clamp(1.75rem, 1.2rem + 1.8vw, 2.9rem);
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.ti-facts {
+  font-size: 0.95rem;
+}
+
+.ti-facts li {
+  position: relative;
+  padding: 12px 0 12px 22px;
+  border-top: 1px solid var(--ti-rule);
+  color: var(--ti-muted);
+}
+
+.ti-facts li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 21px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ti-ok);
+  border-radius: 50%;
+}
+
+/* Closing */
+.ti-closing-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+
+.ti-closing .ti-install {
+  justify-self: end;
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Footer */
+.ti-footer {
+  padding: 32px 0 40px;
+  border-top: 1px solid var(--ti-rule);
+  font-size: 13.5px;
+  color: var(--ti-muted);
+}
+
+.ti-footer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 32px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ti-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.ti-footer a {
+  color: var(--ti-muted);
+  text-decoration: none;
+  transition: color var(--ti-fast);
+}
+
+.ti-footer a:hover {
+  color: var(--ti-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The home layout adds a bottom margin; the footer closes the page instead. */
+.VPHome {
+  margin-bottom: 0 !important;
+}
+
+/* ---------- CJK ---------- */
+
+:lang(ko) .ti-landing,
+:lang(zh) .ti-landing {
+  line-height: 1.75;
+}
+
+:lang(ko) .ti-landing *,
+:lang(zh) .ti-landing * {
+  letter-spacing: 0 !important;
+}
+
+:lang(ko) .ti-title,
+:lang(zh) .ti-title {
+  font-weight: 500;
+  line-height: 1.28;
+  font-size: calc(var(--ti-text-h1) * 0.86);
+  max-width: 11em;
+}
+
+:lang(ko) .ti-title-line + .ti-title-line,
+:lang(zh) .ti-title-line + .ti-title-line {
+  font-style: normal;
+}
+
+:lang(ko) .ti-landing h2,
+:lang(zh) .ti-landing h2 {
+  line-height: 1.35;
+  font-size: calc(var(--ti-text-h2) * 0.88);
+}
+
+:lang(ko) .ti-title,
+:lang(ko) .ti-landing h2,
+:lang(ko) .ti-values h3,
+:lang(ko) .ti-privacy-statement {
+  font-family: var(--ti-font-serif-ko);
+}
+
+:lang(zh) .ti-title,
+:lang(zh) .ti-landing h2,
+:lang(zh) .ti-values h3,
+:lang(zh) .ti-privacy-statement {
+  font-family: var(--ti-font-serif-zh);
+}
+
+:lang(ko) .ti-landing h2.ti-privacy-label,
+:lang(zh) .ti-landing h2.ti-privacy-label {
+  font-family: var(--ti-font-sans);
+  font-size: 14px;
+}
+
+:lang(ko) .ti-privacy-statement,
+:lang(zh) .ti-privacy-statement {
+  line-height: 1.4;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1024px) {
+  .ti-hero-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ti-demo {
+    max-width: 620px;
+  }
+
+  .ti-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 40px;
+  }
+
+  .ti-flow li:nth-child(2) .ti-flow-mark::after {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .ti-section-head,
+  .ti-values li,
+  .ti-qs,
+  .ti-privacy-grid,
+  .ti-closing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ti-values li {
+    gap: 10px;
+  }
+
+  .ti-closing .ti-install {
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .ti-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ti-flow-mark::after {
+    display: none;
+  }
+
+  .ti-file {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .ti-file-meta {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .ti-file-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ti-demo-stack::before {
+    inset: 10px -6px -10px 6px;
+  }
+
+  .ti-ctas .ti-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .ti-install-box code {
+    padding: 14px 12px;
+    font-size: 12px;
+  }
+
+  .ti-prompt {
+    margin-right: 6px;
+  }
+
+  .ti-copy {
+    min-width: 60px;
+    padding: 0 12px;
+  }
+}
