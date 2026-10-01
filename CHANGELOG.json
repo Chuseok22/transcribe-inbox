@@ -1,13 +1,55 @@
 {
   "metadata": {
-    "lastUpdated": "2026-09-26T09:59:35Z",
-    "currentVersion": "0.3.1",
+    "lastUpdated": "2026-10-01T07:34:48Z",
+    "currentVersion": "0.4.0",
     "projectTypes": [
       "basic"
     ],
-    "totalReleases": 9
+    "totalReleases": 10
   },
   "releases": [
+    {
+      "version": "0.4.0",
+      "project_types": [
+        "basic"
+      ],
+      "date": "2026-10-01",
+      "pr_number": null,
+      "raw_summary": "## [0.4.0]\n\n### ✨ 기능\n- README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add editorial site theme with landing page\n- README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add vitepress docs site scaffold with custom theme\n\n### 📝 문서\n- correct behavior details flagged in review\n- rewrite chinese site pages in plain prose\n- rewrite english site pages in plain prose\n- rewrite korean site pages in plain prose\n- rewrite readmes in plain prose\n- add trilingual docs site pages\n- document path env vars in plist example\n- add contributing guide\n- add trilingual readme (en, ko, zh-CN)\n\n### 🔧 변경사항\n- scope pages workflow permissions per job\n- add github pages deploy workflow\n- ignore website build output\n- add github issue/pr templates",
+      "parsed_changes": {
+        "기능": {
+          "title": "✨ 기능",
+          "items": [
+            "README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add editorial site theme with landing page",
+            "README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add vitepress docs site scaffold with custom theme"
+          ]
+        },
+        "문서": {
+          "title": "📝 문서",
+          "items": [
+            "correct behavior details flagged in review",
+            "rewrite chinese site pages in plain prose",
+            "rewrite english site pages in plain prose",
+            "rewrite korean site pages in plain prose",
+            "rewrite readmes in plain prose",
+            "add trilingual docs site pages",
+            "document path env vars in plist example",
+            "add contributing guide",
+            "add trilingual readme (en, ko, zh-CN)"
+          ]
+        },
+        "변경사항": {
+          "title": "🔧 변경사항",
+          "items": [
+            "scope pages workflow permissions per job",
+            "add github pages deploy workflow",
+            "ignore website build output",
+            "add github issue/pr templates"
+          ]
+        }
+      },
+      "parse_method": "markdown"
+    },
     {
       "version": "0.3.1",
       "project_types": [

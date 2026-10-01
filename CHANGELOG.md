@@ -1,7 +1,32 @@
 # Changelog
 
-**현재 버전:** 0.3.1  
-**마지막 업데이트:** 2026-09-26T09:59:35Z  
+**현재 버전:** 0.4.0  
+**마지막 업데이트:** 2026-10-01T07:34:48Z  
+
+---
+
+## [0.4.0] - 2026-10-01
+
+**✨ 기능**
+- README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add editorial site theme with landing page
+- README_3개_국어화_및_GitHub_Pages_문서_사이트_구축 — add vitepress docs site scaffold with custom theme
+
+**📝 문서**
+- correct behavior details flagged in review
+- rewrite chinese site pages in plain prose
+- rewrite english site pages in plain prose
+- rewrite korean site pages in plain prose
+- rewrite readmes in plain prose
+- add trilingual docs site pages
+- document path env vars in plist example
+- add contributing guide
+- add trilingual readme (en, ko, zh-CN)
+
+**🔧 변경사항**
+- scope pages workflow permissions per job
+- add github pages deploy workflow
+- ignore website build output
+- add github issue/pr templates
 
 ---
 
